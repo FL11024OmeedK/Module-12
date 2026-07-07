@@ -1,9 +1,13 @@
 package com.rocketFoodDelivery.rocketFood.controller.api;
 
+import com.rocketFoodDelivery.rocketFood.dtos.orderStatus.ApiOrderStatusCrudDTO;
 import com.rocketFoodDelivery.rocketFood.dtos.orderStatus.ApiOrderStatusDTO;
 import com.rocketFoodDelivery.rocketFood.exception.BadRequestException;
+import com.rocketFoodDelivery.rocketFood.exception.ResourceNotFoundException;
 import com.rocketFoodDelivery.rocketFood.service.OrderStatusService;
 import com.rocketFoodDelivery.rocketFood.util.ResponseBuilder;
+
+import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -18,26 +22,50 @@ public class OrderStatusApiController {
 
 
     // ==================== DTO-Based API Endpoints ====================
-    
+
 
     // GET /api/order-statuses - Get all order statuses
-    // todo: implement get all
-    
+    @GetMapping("/api/order-statuses")
+    public ResponseEntity<Object> getAllOrderStatuses() {
+        return ResponseBuilder.buildOkResponse(orderStatusService.getAllOrderStatusesAsDtos());
+    }
+
 
     // GET /api/order-statuses/{id} - Get order status by ID
-    // todo: implement get by id endpoint
-    
+    @GetMapping("/api/order-statuses/{id}")
+    public ResponseEntity<Object> getOrderStatusById(@PathVariable int id) {
+        ApiOrderStatusCrudDTO status = orderStatusService.getOrderStatusByIdAsDto(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Order status with id " + id + " not found"));
+        return ResponseBuilder.buildOkResponse(status);
+    }
+
 
     // POST /api/order-statuses - Create new order status
-    // todo: implement create endpoint
-    
+    @PostMapping("/api/order-statuses")
+    public ResponseEntity<Object> createOrderStatus(@Valid @RequestBody ApiOrderStatusCrudDTO statusDto) {
+        ApiOrderStatusCrudDTO created = orderStatusService.createOrderStatus(statusDto);
+        return ResponseBuilder.buildCreatedResponse(created);
+    }
+
 
     // PUT /api/order-statuses/{id} - Update order status by ID
-    // todo: implement update endpoint
-    
+    @PutMapping("/api/order-statuses/{id}")
+    public ResponseEntity<Object> updateOrderStatus(@PathVariable int id, @Valid @RequestBody ApiOrderStatusCrudDTO statusDto) {
+        ApiOrderStatusCrudDTO updated = orderStatusService.updateOrderStatus(id, statusDto)
+                .orElseThrow(() -> new ResourceNotFoundException("Order status with id " + id + " not found"));
+        return ResponseBuilder.buildOkResponse(updated);
+    }
+
 
     // DELETE /api/order-statuses/{id} - Delete order status by ID
-    // todo: implement delete endpoint
+    @DeleteMapping("/api/order-statuses/{id}")
+    public ResponseEntity<Object> deleteOrderStatus(@PathVariable int id) {
+        // Fetch first so we can (a) return the deleted data and (b) 404 if it never existed.
+        ApiOrderStatusCrudDTO status = orderStatusService.getOrderStatusByIdAsDto(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Order status with id " + id + " not found"));
+        orderStatusService.deleteOrderStatus(id);
+        return ResponseBuilder.buildOkResponse(status);
+    }
 
 
     // ==================== Custom Endpoints ====================

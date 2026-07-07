@@ -1,19 +1,21 @@
 package com.rocketFoodDelivery.rocketFood.api.orderStatus;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.rocketFoodDelivery.rocketFood.dtos.orderStatus.ApiOrderStatusCrudDTO;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.transaction.annotation.Transactional;
 
-import static org.junit.jupiter.api.Assertions.fail;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @SpringBootTest
 @AutoConfigureMockMvc(addFilters = false)
+@Transactional // roll back each test's DB writes so tests stay independent and non-destructive
 public class OrderStatusApiControllerTest {
 
     @Autowired
@@ -22,24 +24,45 @@ public class OrderStatusApiControllerTest {
     @Autowired
     private ObjectMapper objectMapper;
 
+    // Helper: build a valid CRUD DTO
+    private ApiOrderStatusCrudDTO buildStatus(String name) {
+        ApiOrderStatusCrudDTO dto = new ApiOrderStatusCrudDTO();
+        dto.setName(name);
+        return dto;
+    }
+
+    // Helper: POST an order status and return its generated id
+    private int createStatusAndGetId(String name) throws Exception {
+        String response = mockMvc.perform(post("/api/order-statuses")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(buildStatus(name))))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        return objectMapper.readTree(response).path("data").path("id").asInt();
+    }
+
     // ==================== POST /api/order/{order_id}/status (Custom Endpoint) ====================
 
     @Test
     public void testUpdateOrderStatus_Success() throws Exception {
-        // todo: Build a valid ApiOrderStatusDTO with a valid status (e.g. "in progress")
-        // todo: Send POST request to /api/order/{order_id}/status with JSON body and a known valid order id
-        // todo: Assert status 200 OK
-        // todo: Assert response contains "message": "Success"
-        // todo: Assert response data status matches the input
-        fail("todo: Implement test");
+        String body = "{\"status\": \"in progress\"}";
+
+        mockMvc.perform(post("/api/order/{order_id}/status", 1)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("Success"))
+                .andExpect(jsonPath("$.data.status").value("in progress"));
     }
 
     @Test
     public void testUpdateOrderStatus_Failure_InvalidStatus() throws Exception {
-        // todo: Build an ApiOrderStatusDTO with an invalid status (e.g. "nonexistent_status")
-        // todo: Send POST request to /api/order/{order_id}/status with JSON body
-        // todo: Assert status 400 Bad Request
-        fail("todo: Implement test");
+        String body = "{\"status\": \"nonexistent_status\"}";
+
+        mockMvc.perform(post("/api/order/{order_id}/status", 1)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isBadRequest());
     }
 
     // ==================== GET /api/order-statuses ====================
@@ -72,32 +95,40 @@ public class OrderStatusApiControllerTest {
 
     @Test
     public void testCreateOrderStatus_Success() throws Exception {
-        // todo: Build a valid ApiOrderStatusCrudDTO (name)
-        // todo: Send POST request to /api/order-statuses with JSON body
-        // todo: Assert status 201 Created
-        // todo: Assert response contains "message": "Success"
-        // todo: Assert response data name matches the input
-        fail("todo: Implement test");
+        ApiOrderStatusCrudDTO newStatus = buildStatus("archived");
+
+        mockMvc.perform(post("/api/order-statuses")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(newStatus)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.message").value("Success"))
+                .andExpect(jsonPath("$.data.id").isNumber())
+                .andExpect(jsonPath("$.data.name").value("archived"));
     }
 
     @Test
     public void testCreateOrderStatus_Failure_InvalidData() throws Exception {
-        // todo: Send POST request to /api/order-statuses with empty or invalid JSON body
-        // todo: Assert status 400 Bad Request
-        fail("todo: Implement test");
+        mockMvc.perform(post("/api/order-statuses")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isBadRequest());
     }
 
     // ==================== PUT /api/order-statuses/{id} ====================
 
     @Test
     public void testUpdateOrderStatusEntity_Success() throws Exception {
-        // todo: Create a fresh order status first (POST) to have a known id
-        // todo: Build a valid ApiOrderStatusCrudDTO for update
-        // todo: Send PUT request to /api/order-statuses/{id} with JSON body
-        // todo: Assert status 200 OK
-        // todo: Assert response contains "message": "Success"
-        // todo: Assert response data fields reflect the update
-        fail("todo: Implement test");
+        int id = createStatusAndGetId("temporary");
+
+        ApiOrderStatusCrudDTO update = buildStatus("renamed_status");
+
+        mockMvc.perform(put("/api/order-statuses/{id}", id)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(update)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("Success"))
+                .andExpect(jsonPath("$.data.id").value(id))
+                .andExpect(jsonPath("$.data.name").value("renamed_status"));
     }
 
     @Test
@@ -114,18 +145,17 @@ public class OrderStatusApiControllerTest {
 
     @Test
     public void testDeleteOrderStatus_Success() throws Exception {
-        // todo: Create a fresh order status first (POST) to safely delete
-        // todo: Extract the created id from the response
-        // todo: Send DELETE request to /api/order-statuses/{id}
-        // todo: Assert status 200 OK
-        // todo: Assert response contains "message": "Success"
-        fail("todo: Implement test");
+        int id = createStatusAndGetId("to_delete");
+
+        mockMvc.perform(delete("/api/order-statuses/{id}", id))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("Success"))
+                .andExpect(jsonPath("$.data.id").value(id));
     }
 
     @Test
     public void testDeleteOrderStatus_Failure_NotFound() throws Exception {
-        // todo: Send DELETE request to /api/order-statuses/{id} with a non-existent id (e.g. 999999)
-        // todo: Assert status 404 Not Found
-        fail("todo: Implement test");
+        mockMvc.perform(delete("/api/order-statuses/{id}", 999999))
+                .andExpect(status().isNotFound());
     }
 }

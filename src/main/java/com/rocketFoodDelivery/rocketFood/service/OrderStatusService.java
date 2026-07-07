@@ -1,7 +1,6 @@
 package com.rocketFoodDelivery.rocketFood.service;
 
 // Java standard library
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -18,11 +17,14 @@ import com.rocketFoodDelivery.rocketFood.models.OrderStatus;
 import com.rocketFoodDelivery.rocketFood.dtos.orderStatus.ApiOrderStatusCrudDTO;
 import com.rocketFoodDelivery.rocketFood.dtos.orderStatus.ApiOrderStatusDTO;
 
+// Project exceptions
+import com.rocketFoodDelivery.rocketFood.exception.BadRequestException;
+
 // Project repositories
 import com.rocketFoodDelivery.rocketFood.repository.OrderRepository;
 import com.rocketFoodDelivery.rocketFood.repository.OrderStatusRepository;
 
-@Service       
+@Service
 public class OrderStatusService {
 
     @Autowired
@@ -65,23 +67,49 @@ public class OrderStatusService {
     }
 
     // ==================== DTO-Based Service Methods (used by API controller) ====================
-    // todo: Implement service methods that use DTOs for input/output.
 
 
-    // CREATE - Create an address from DTO
-    // todo: Implement service method to create an address from DTO, return created DTO with ID
-    
+    // CREATE - Insert a new order status from a DTO and return it with its generated id.
+    // @Transactional keeps saveOrderStatus() and getLastInsertedId() on the same connection.
+    @Transactional
+    public ApiOrderStatusCrudDTO createOrderStatus(ApiOrderStatusCrudDTO dto) {
+        orderStatusRepository.saveOrderStatus(dto.getName());
 
-    // READ - Get all addresses as DTOs
-    // todo: Implement service method to get all addresses as DTOs
+        int newId = orderStatusRepository.getLastInsertedId();
+        return orderStatusRepository.findOrderStatusById(newId)
+                .map(this::mapOrderStatusToDTO)
+                .orElseThrow(() -> new BadRequestException("Failed to create order status"));
+    }
 
 
-    // READ - Get an address by ID as DTO
-    // todo: Implement service method to get an address by ID as DTO, return Optional.empty() if not found
+    // READ - Return every order status as a DTO.
+    public List<ApiOrderStatusCrudDTO> getAllOrderStatusesAsDtos() {
+        return orderStatusRepository.findAllOrderStatuses().stream()
+                .map(this::mapOrderStatusToDTO)
+                .toList();
+    }
 
 
-    // UPDATE - Update an address from DTO
-    // todo: Implement service method to update an address from DTO, return updated DTO, or Optional.empty() if not found
+    // READ - Return a single order status as a DTO, or Optional.empty() if it does not exist.
+    public Optional<ApiOrderStatusCrudDTO> getOrderStatusByIdAsDto(int id) {
+        return orderStatusRepository.findOrderStatusById(id)
+                .map(this::mapOrderStatusToDTO);
+    }
+
+
+    // UPDATE - Update an existing order status from a DTO.
+    // Returns the updated DTO, or Optional.empty() if no status has the given id.
+    @Transactional
+    public Optional<ApiOrderStatusCrudDTO> updateOrderStatus(int id, ApiOrderStatusCrudDTO dto) {
+        if (orderStatusRepository.findOrderStatusById(id).isEmpty()) {
+            return Optional.empty();
+        }
+
+        orderStatusRepository.updateOrderStatus(id, dto.getName());
+
+        dto.setId(id);
+        return Optional.of(dto);
+    }
 
 
     // UPDATE - Update order status for an order from DTO
@@ -99,11 +127,19 @@ public class OrderStatusService {
         return Optional.of(response);
     }
 
-    // DELETE - Delete an address by ID, return true if found
-    // todo: Implement service method to delete an address by ID, return true if found and deleted, false if not found
+
+    // DELETE - Delete an order status by id. Returns true if it existed and was deleted, false otherwise.
+    @Transactional
+    public boolean deleteOrderStatus(int id) {
+        if (orderStatusRepository.findOrderStatusById(id).isEmpty()) {
+            return false;
+        }
+        orderStatusRepository.deleteOrderStatusById(id);
+        return true;
+    }
 
 
-    // HELPER - Method to map Address entity to DTO
+    // HELPER - Method to map OrderStatus entity to DTO
     private ApiOrderStatusCrudDTO mapOrderStatusToDTO(OrderStatus status) {
         ApiOrderStatusCrudDTO dto = new ApiOrderStatusCrudDTO();
         dto.setId(status.getId());
