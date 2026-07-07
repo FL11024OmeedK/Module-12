@@ -1,19 +1,26 @@
 package com.rocketFoodDelivery.rocketFood.api.customer;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.rocketFoodDelivery.rocketFood.dtos.customer.ApiCustomerDTO;
+import com.rocketFoodDelivery.rocketFood.models.User;
+import com.rocketFoodDelivery.rocketFood.repository.AddressRepository;
+import com.rocketFoodDelivery.rocketFood.repository.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.transaction.annotation.Transactional;
 
-import static org.junit.jupiter.api.Assertions.fail;
+import java.util.UUID;
+
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @SpringBootTest
 @AutoConfigureMockMvc(addFilters = false)
+@Transactional // roll back each test's DB writes so tests stay independent and non-destructive
 public class CustomerApiControllerTest {
 
     @Autowired
@@ -21,6 +28,48 @@ public class CustomerApiControllerTest {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @Autowired
+    private UserRepository userRepository;
+
+    @Autowired
+    private AddressRepository addressRepository;
+
+    // Helper: persist a fresh user (unique email) with no existing customer, return its id
+    private int freshUserId() {
+        User user = User.builder()
+                .name("Test Customer User")
+                .email("customer.test." + UUID.randomUUID() + "@example.com")
+                .password("password")
+                .build();
+        return userRepository.save(user).getId();
+    }
+
+    private int seededAddressId() {
+        return addressRepository.findAll().get(0).getId();
+    }
+
+    // Helper: build a valid customer DTO referencing valid foreign keys
+    private ApiCustomerDTO buildCustomer(int userId, int addressId) {
+        ApiCustomerDTO dto = new ApiCustomerDTO();
+        dto.setUserId(userId);
+        dto.setAddressId(addressId);
+        dto.setPhone("+1-555-1234");
+        dto.setEmail("customer@example.com");
+        dto.setActive(true);
+        return dto;
+    }
+
+    // Helper: POST a customer (with a fresh user) and return its generated id
+    private int createCustomerAndGetId() throws Exception {
+        ApiCustomerDTO dto = buildCustomer(freshUserId(), seededAddressId());
+        String response = mockMvc.perform(post("/api/customers")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        return objectMapper.readTree(response).path("data").path("id").asInt();
+    }
 
     // ==================== GET /api/customers ====================
 
@@ -36,11 +85,12 @@ public class CustomerApiControllerTest {
 
     @Test
     public void testGetCustomerById_Success() throws Exception {
-        // todo: Send GET request to /api/customers/{id} with a known valid id (e.g. 1)
-        // todo: Assert status 200 OK
-        // todo: Assert response contains "message": "Success"
-        // todo: Assert response contains "data.id" matching the requested id
-        fail("todo: Implement test");
+        int id = createCustomerAndGetId();
+
+        mockMvc.perform(get("/api/customers/{id}", id))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("Success"))
+                .andExpect(jsonPath("$.data.id").value(id));
     }
 
     @Test
@@ -53,32 +103,50 @@ public class CustomerApiControllerTest {
 
     @Test
     public void testCreateCustomer_Success() throws Exception {
-        // todo: Create a fresh user first (POST /api/users) to get a valid user_id
-        // todo: Build a valid ApiCustomerDTO (user_id, address_id, phone, email, active)
-        // todo: Send POST request to /api/customers with JSON body
-        // todo: Assert status 201 Created
-        // todo: Assert response contains "message": "Success"
-        // todo: Assert response data fields match the input
-        fail("todo: Implement test");
+        int userId = freshUserId();
+        int addressId = seededAddressId();
+        ApiCustomerDTO newCustomer = buildCustomer(userId, addressId);
+
+        mockMvc.perform(post("/api/customers")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(newCustomer)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.message").value("Success"))
+                .andExpect(jsonPath("$.data.id").isNumber())
+                .andExpect(jsonPath("$.data.user_id").value(userId))
+                .andExpect(jsonPath("$.data.address_id").value(addressId))
+                .andExpect(jsonPath("$.data.phone").value("+1-555-1234"))
+                .andExpect(jsonPath("$.data.active").value(true));
     }
 
     @Test
     public void testCreateCustomer_Failure_InvalidData() throws Exception {
-        // todo: Send POST request to /api/customers with empty or invalid JSON body
-        // todo: Assert status 400 Bad Request
-        fail("todo: Implement test");
+        mockMvc.perform(post("/api/customers")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isBadRequest());
     }
 
     // ==================== PUT /api/customers/{id} ====================
 
     @Test
     public void testUpdateCustomer_Success() throws Exception {
-        // todo: Build a valid ApiCustomerDTO for update
-        // todo: Send PUT request to /api/customers/{id} with JSON body and a known valid id
-        // todo: Assert status 200 OK
-        // todo: Assert response contains "message": "Success"
-        // todo: Assert response data fields reflect the update
-        fail("todo: Implement test");
+        int id = createCustomerAndGetId();
+
+        ApiCustomerDTO update = new ApiCustomerDTO();
+        update.setPhone("+1-555-9999");
+        update.setEmail("updated@example.com");
+        update.setActive(false);
+
+        mockMvc.perform(put("/api/customers/{id}", id)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(update)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("Success"))
+                .andExpect(jsonPath("$.data.id").value(id))
+                .andExpect(jsonPath("$.data.phone").value("+1-555-9999"))
+                .andExpect(jsonPath("$.data.email").value("updated@example.com"))
+                .andExpect(jsonPath("$.data.active").value(false));
     }
 
     @Test
@@ -95,18 +163,17 @@ public class CustomerApiControllerTest {
 
     @Test
     public void testDeleteCustomer_Success() throws Exception {
-        // todo: Create a fresh user and customer first (POST) to safely delete
-        // todo: Extract the created customer id from the response
-        // todo: Send DELETE request to /api/customers/{id}
-        // todo: Assert status 200 OK
-        // todo: Assert response contains "message": "Success"
-        fail("todo: Implement test");
+        int id = createCustomerAndGetId();
+
+        mockMvc.perform(delete("/api/customers/{id}", id))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("Success"))
+                .andExpect(jsonPath("$.data.id").value(id));
     }
 
     @Test
     public void testDeleteCustomer_Failure_NotFound() throws Exception {
-        // todo: Send DELETE request to /api/customers/{id} with a non-existent id (e.g. 999999)
-        // todo: Assert status 404 Not Found
-        fail("todo: Implement test");
+        mockMvc.perform(delete("/api/customers/{id}", 999999))
+                .andExpect(status().isNotFound());
     }
 }
