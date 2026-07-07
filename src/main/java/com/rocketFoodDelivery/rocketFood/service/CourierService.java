@@ -1,36 +1,45 @@
 package com.rocketFoodDelivery.rocketFood.service;
 
 // Java standard library
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
 // Spring Framework
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 // Project models
-import com.rocketFoodDelivery.rocketFood.models.Address;
 import com.rocketFoodDelivery.rocketFood.models.Courier;
-import com.rocketFoodDelivery.rocketFood.models.CourierStatus;
-import com.rocketFoodDelivery.rocketFood.models.User;
 
 // Project DTOs
 import com.rocketFoodDelivery.rocketFood.dtos.courier.ApiCourierDTO;
 
-// Project repositories
-import com.rocketFoodDelivery.rocketFood.repository.CourierRepository;
+// Project exceptions
+import com.rocketFoodDelivery.rocketFood.exception.BadRequestException;
 
-@Service       
+// Project repositories
+import com.rocketFoodDelivery.rocketFood.repository.AddressRepository;
+import com.rocketFoodDelivery.rocketFood.repository.CourierRepository;
+import com.rocketFoodDelivery.rocketFood.repository.CourierStatusRepository;
+import com.rocketFoodDelivery.rocketFood.repository.UserRepository;
+
+@Service
 public class CourierService {
 
-    @Autowired
-    private CourierRepository courierRepository;
+    private final CourierRepository courierRepository;
+    private final UserRepository userRepository;
+    private final AddressRepository addressRepository;
+    private final CourierStatusRepository courierStatusRepository;
 
-    // Constructor
-    public CourierService(CourierRepository courierRepository){
+    // Constructor injection
+    public CourierService(CourierRepository courierRepository,
+                          UserRepository userRepository,
+                          AddressRepository addressRepository,
+                          CourierStatusRepository courierStatusRepository) {
         this.courierRepository = courierRepository;
+        this.userRepository = userRepository;
+        this.addressRepository = addressRepository;
+        this.courierStatusRepository = courierStatusRepository;
     }
 
     // ==================== JPA CRUD Service Methods ====================
@@ -61,27 +70,99 @@ public class CourierService {
     }
 
     // ==================== DTO-Based Service Methods (used by API controller) ====================
-    // todo: Implement service methods that use DTOs for input/output.
 
 
-    // CREATE - Create an address from DTO
-    // todo: Implement service method to create an address from DTO, return created DTO with ID
-    
+    // CREATE - Create a courier from a DTO and return it with its generated id.
+    // @Transactional keeps saveCourier() and getLastInsertedId() on the same connection.
+    @Transactional
+    public ApiCourierDTO createCourier(ApiCourierDTO dto) {
+        validateReferences(dto);
 
-    // READ - Get all addresses as DTOs
-    // todo: Implement service method to get all addresses as DTOs
+        // One courier per user (also enforced by the DB unique constraint on user_id).
+        if (courierRepository.findCourierByUserId(dto.getUserId()).isPresent()) {
+            throw new BadRequestException("User with id " + dto.getUserId() + " already has a courier");
+        }
+
+        courierRepository.saveCourier(
+                dto.getUserId(),
+                dto.getAddressId(),
+                dto.getCourierStatusId(),
+                dto.getPhone(),
+                dto.getEmail());
+
+        int newId = courierRepository.getLastInsertedId();
+        return courierRepository.findCourierById(newId)
+                .map(this::mapCourierToDTO)
+                .orElseThrow(() -> new BadRequestException("Failed to create courier"));
+    }
 
 
-    // READ - Get an address by ID as DTO
-    // todo: Implement service method to get an address by ID as DTO, return Optional.empty() if not found
+    // READ - Return every courier as a DTO.
+    public List<ApiCourierDTO> getAllCouriersAsDtos() {
+        return courierRepository.findAllCouriers().stream()
+                .map(this::mapCourierToDTO)
+                .toList();
+    }
 
 
-    // UPDATE - Update an address from DTO
-    // todo: Implement service method to update an address from DTO, return updated DTO, or Optional.empty() if not found
+    // READ - Return a single courier as a DTO, or Optional.empty() if it does not exist.
+    public Optional<ApiCourierDTO> getCourierByIdAsDto(int id) {
+        return courierRepository.findCourierById(id)
+                .map(this::mapCourierToDTO);
+    }
 
 
-    // DELETE - Delete an address by ID, return true if found
-    // todo: Implement service method to delete an address by ID, return true if found and deleted, false if not found
+    // UPDATE - Update an existing courier from a DTO (status, phone, email, active only).
+    // Returns the updated DTO, or Optional.empty() if no courier has the given id.
+    @Transactional
+    public Optional<ApiCourierDTO> updateCourier(int id, ApiCourierDTO dto) {
+        Optional<Courier> existingOpt = courierRepository.findCourierById(id);
+        if (existingOpt.isEmpty()) {
+            return Optional.empty();
+        }
+        Courier existing = existingOpt.get();
+        // user_id and address_id are immutable on update — carry the stored values into the response.
+        int userId = existing.getUser().getId();
+        int addressId = existing.getAddress().getId();
+
+        boolean active = dto.getActive() != null ? dto.getActive() : true;
+        courierRepository.updateCourier(id, dto.getCourierStatusId(), dto.getPhone(), dto.getEmail(), active);
+
+        ApiCourierDTO result = new ApiCourierDTO();
+        result.setId(id);
+        result.setUserId(userId);
+        result.setAddressId(addressId);
+        result.setCourierStatusId(dto.getCourierStatusId());
+        result.setPhone(dto.getPhone());
+        result.setEmail(dto.getEmail());
+        result.setActive(active);
+        return Optional.of(result);
+    }
+
+
+    // DELETE - Delete a courier by id. Returns true if it existed and was deleted, false otherwise.
+    @Transactional
+    public boolean deleteCourier(int id) {
+        if (courierRepository.findCourierById(id).isEmpty()) {
+            return false;
+        }
+        courierRepository.deleteCourierById(id);
+        return true;
+    }
+
+
+    // HELPER - Validate that the referenced user, address, and courier status all exist.
+    private void validateReferences(ApiCourierDTO dto) {
+        if (userRepository.findById(dto.getUserId()).isEmpty()) {
+            throw new BadRequestException("User with id " + dto.getUserId() + " not found");
+        }
+        if (addressRepository.findById(dto.getAddressId()).isEmpty()) {
+            throw new BadRequestException("Address with id " + dto.getAddressId() + " not found");
+        }
+        if (courierStatusRepository.findById(dto.getCourierStatusId()).isEmpty()) {
+            throw new BadRequestException("Courier status with id " + dto.getCourierStatusId() + " not found");
+        }
+    }
 
 
     // HELPER - Method to map Courier entity to DTO
