@@ -1,35 +1,41 @@
 package com.rocketFoodDelivery.rocketFood.service;
 
 // Java standard library
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
 // Spring Framework
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 // Project models
-import com.rocketFoodDelivery.rocketFood.models.Address;
 import com.rocketFoodDelivery.rocketFood.models.Customer;
-import com.rocketFoodDelivery.rocketFood.models.User;
 
 // Project DTOs
 import com.rocketFoodDelivery.rocketFood.dtos.customer.ApiCustomerDTO;
 
-// Project repositories
-import com.rocketFoodDelivery.rocketFood.repository.CustomerRepository;
+// Project exceptions
+import com.rocketFoodDelivery.rocketFood.exception.BadRequestException;
 
-@Service       
+// Project repositories
+import com.rocketFoodDelivery.rocketFood.repository.AddressRepository;
+import com.rocketFoodDelivery.rocketFood.repository.CustomerRepository;
+import com.rocketFoodDelivery.rocketFood.repository.UserRepository;
+
+@Service
 public class CustomerService {
 
-    @Autowired
-    private CustomerRepository customerRepository;
+    private final CustomerRepository customerRepository;
+    private final UserRepository userRepository;
+    private final AddressRepository addressRepository;
 
-    // Constructor
-    public CustomerService(CustomerRepository customerRepository){
+    // Constructor injection
+    public CustomerService(CustomerRepository customerRepository,
+                           UserRepository userRepository,
+                           AddressRepository addressRepository) {
         this.customerRepository = customerRepository;
+        this.userRepository = userRepository;
+        this.addressRepository = addressRepository;
     }
 
     // ==================== JPA CRUD Service Methods ====================
@@ -60,30 +66,97 @@ public class CustomerService {
     }
 
     // ==================== DTO-Based Service Methods (used by API controller) ====================
-    // todo: Implement service methods that use DTOs for input/output.
 
 
-    // CREATE - Create an address from DTO
-    // todo: Implement service method to create an address from DTO, return created DTO with ID
-    
+    // CREATE - Create a customer from a DTO and return it with its generated id.
+    // @Transactional keeps saveCustomer() and getLastInsertedId() on the same connection.
+    @Transactional
+    public ApiCustomerDTO createCustomer(ApiCustomerDTO dto) {
+        validateReferences(dto);
 
-    // READ - Get all addresses as DTOs
-    // todo: Implement service method to get all addresses as DTOs
+        // One customer per user (also enforced by the DB unique constraint on user_id).
+        if (customerRepository.findCustomerByUserId(dto.getUserId()).isPresent()) {
+            throw new BadRequestException("User with id " + dto.getUserId() + " already has a customer");
+        }
+
+        customerRepository.saveCustomer(
+                dto.getUserId(),
+                dto.getAddressId(),
+                dto.getPhone(),
+                dto.getEmail());
+
+        int newId = customerRepository.getLastInsertedId();
+        return customerRepository.findCustomerById(newId)
+                .map(this::mapCustomerToDTO)
+                .orElseThrow(() -> new BadRequestException("Failed to create customer"));
+    }
 
 
-    // READ - Get an address by ID as DTO
-    // todo: Implement service method to get an address by ID as DTO, return Optional.empty() if not found
+    // READ - Return every customer as a DTO.
+    public List<ApiCustomerDTO> getAllCustomersAsDtos() {
+        return customerRepository.findAllCustomers().stream()
+                .map(this::mapCustomerToDTO)
+                .toList();
+    }
 
 
-    // UPDATE - Update an address from DTO
-    // todo: Implement service method to update an address from DTO, return updated DTO, or Optional.empty() if not found
+    // READ - Return a single customer as a DTO, or Optional.empty() if it does not exist.
+    public Optional<ApiCustomerDTO> getCustomerByIdAsDto(int id) {
+        return customerRepository.findCustomerById(id)
+                .map(this::mapCustomerToDTO);
+    }
 
 
-    // DELETE - Delete an address by ID, return true if found
-    // todo: Implement service method to delete an address by ID, return true if found and deleted, false if not found
+    // UPDATE - Update an existing customer from a DTO (phone, email, active only).
+    // Returns the updated DTO, or Optional.empty() if no customer has the given id.
+    @Transactional
+    public Optional<ApiCustomerDTO> updateCustomer(int id, ApiCustomerDTO dto) {
+        Optional<Customer> existingOpt = customerRepository.findCustomerById(id);
+        if (existingOpt.isEmpty()) {
+            return Optional.empty();
+        }
+        Customer existing = existingOpt.get();
+        // user_id and address_id are immutable on update — carry the stored values into the response.
+        int userId = existing.getUser().getId();
+        int addressId = existing.getAddress().getId();
+
+        boolean active = dto.getActive() != null ? dto.getActive() : true;
+        customerRepository.updateCustomer(id, dto.getPhone(), dto.getEmail(), active);
+
+        ApiCustomerDTO result = new ApiCustomerDTO();
+        result.setId(id);
+        result.setUserId(userId);
+        result.setAddressId(addressId);
+        result.setPhone(dto.getPhone());
+        result.setEmail(dto.getEmail());
+        result.setActive(active);
+        return Optional.of(result);
+    }
 
 
-    // HELPER - Method to map Address entity to DTO
+    // DELETE - Delete a customer by id. Returns true if it existed and was deleted, false otherwise.
+    @Transactional
+    public boolean deleteCustomer(int id) {
+        if (customerRepository.findCustomerById(id).isEmpty()) {
+            return false;
+        }
+        customerRepository.deleteCustomerById(id);
+        return true;
+    }
+
+
+    // HELPER - Validate that the referenced user and address exist.
+    private void validateReferences(ApiCustomerDTO dto) {
+        if (userRepository.findById(dto.getUserId()).isEmpty()) {
+            throw new BadRequestException("User with id " + dto.getUserId() + " not found");
+        }
+        if (addressRepository.findById(dto.getAddressId()).isEmpty()) {
+            throw new BadRequestException("Address with id " + dto.getAddressId() + " not found");
+        }
+    }
+
+
+    // HELPER - Method to map Customer entity to DTO
     private ApiCustomerDTO mapCustomerToDTO(Customer customer) {
         ApiCustomerDTO dto = new ApiCustomerDTO();
         dto.setId(customer.getId());
