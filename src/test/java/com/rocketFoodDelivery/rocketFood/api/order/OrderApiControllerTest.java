@@ -1,19 +1,27 @@
 package com.rocketFoodDelivery.rocketFood.api.order;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.rocketFoodDelivery.rocketFood.dtos.order.ApiCreateOrderDTO;
+import com.rocketFoodDelivery.rocketFood.models.Product;
+import com.rocketFoodDelivery.rocketFood.repository.CourierRepository;
+import com.rocketFoodDelivery.rocketFood.repository.CustomerRepository;
+import com.rocketFoodDelivery.rocketFood.repository.ProductRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.transaction.annotation.Transactional;
 
-import static org.junit.jupiter.api.Assertions.fail;
+import java.util.List;
+
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @SpringBootTest
 @AutoConfigureMockMvc(addFilters = false)
+@Transactional // roll back each test's DB writes so tests stay independent and non-destructive
 public class OrderApiControllerTest {
 
     @Autowired
@@ -21,6 +29,41 @@ public class OrderApiControllerTest {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @Autowired
+    private ProductRepository productRepository;
+
+    @Autowired
+    private CustomerRepository customerRepository;
+
+    @Autowired
+    private CourierRepository courierRepository;
+
+    // Helper: build a valid create-order DTO from seeded data (a product + its restaurant + a customer)
+    private ApiCreateOrderDTO buildValidOrder() {
+        Product product = productRepository.findAll().get(0);
+        int restaurantId = product.getRestaurant().getId();
+        int customerId = customerRepository.findAll().get(0).getId();
+
+        ApiCreateOrderDTO dto = new ApiCreateOrderDTO();
+        dto.setRestaurantId(restaurantId);
+        dto.setCustomerId(customerId);
+        ApiCreateOrderDTO.ProductItem item = new ApiCreateOrderDTO.ProductItem();
+        item.setId(product.getId());
+        item.setQuantity(2);
+        dto.setProducts(List.of(item));
+        return dto;
+    }
+
+    // Helper: POST an order and return its generated id
+    private int createOrderAndGetId() throws Exception {
+        String response = mockMvc.perform(post("/api/orders")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(buildValidOrder())))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        return objectMapper.readTree(response).path("data").path("id").asInt();
+    }
 
     // ==================== GET /api/orders ====================
 
@@ -46,32 +89,54 @@ public class OrderApiControllerTest {
 
     @Test
     public void testCreateOrder_Success() throws Exception {
-        // todo: Build a valid ApiCreateOrderDTO (restaurantId, customerId, products list)
-        // todo: Send POST request to /api/orders with JSON body
-        // todo: Assert status 201 Created
-        // todo: Assert response data contains id, customer_id, restaurant_id, status="pending", products array, total_cost
-        fail("todo: Implement test");
+        ApiCreateOrderDTO dto = buildValidOrder();
+
+        mockMvc.perform(post("/api/orders")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.message").value("Success"))
+                .andExpect(jsonPath("$.data.id").isNumber())
+                .andExpect(jsonPath("$.data.customer_id").value(dto.getCustomerId()))
+                .andExpect(jsonPath("$.data.restaurant_id").value(dto.getRestaurantId()))
+                .andExpect(jsonPath("$.data.status").value("pending"))
+                .andExpect(jsonPath("$.data.products").isArray())
+                .andExpect(jsonPath("$.data.total_cost").isNumber());
     }
 
     @Test
     public void testCreateOrder_Failure_InvalidData() throws Exception {
-        // todo: Build an invalid ApiCreateOrderDTO (non-existent restaurant/customer, empty products)
-        // todo: Send POST request to /api/orders with JSON body
-        // todo: Assert status 400 Bad Request
-        // todo: Assert response contains "error": "Bad Request"
-        fail("todo: Implement test");
+        // Valid products list but a non-existent restaurant -> service throws BadRequestException
+        ApiCreateOrderDTO dto = buildValidOrder();
+        dto.setRestaurantId(999999);
+
+        mockMvc.perform(post("/api/orders")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("Bad Request"));
     }
 
     // ==================== PUT /api/orders/{id} ====================
 
     @Test
     public void testUpdateOrder_Success() throws Exception {
-        // todo: Build a valid ApiUpdateOrderDTO (customer_id, restaurant_id, courier_id)
-        // todo: Send PUT request to /api/orders/{id} with JSON body and a known valid id
-        // todo: Assert status 200 OK
-        // todo: Assert response contains "message": "Success"
-        // todo: Assert response data id matches the requested id
-        fail("todo: Implement test");
+        int orderId = createOrderAndGetId();
+
+        int customerId = customerRepository.findAll().get(0).getId();
+        int restaurantId = productRepository.findAll().get(0).getRestaurant().getId();
+        int courierId = courierRepository.findAll().get(0).getId();
+
+        String body = String.format(
+                "{\"customer_id\": %d, \"restaurant_id\": %d, \"courier_id\": %d}",
+                customerId, restaurantId, courierId);
+
+        mockMvc.perform(put("/api/orders/{id}", orderId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("Success"))
+                .andExpect(jsonPath("$.data.id").value(orderId));
     }
 
     @Test
@@ -88,18 +153,17 @@ public class OrderApiControllerTest {
 
     @Test
     public void testDeleteOrder_Success() throws Exception {
-        // todo: Create a fresh order first (POST) to safely delete
-        // todo: Extract the created id from the response
-        // todo: Send DELETE request to /api/orders/{id}
-        // todo: Assert status 200 OK
-        // todo: Assert response contains "message": "Success"
-        fail("todo: Implement test");
+        int orderId = createOrderAndGetId();
+
+        mockMvc.perform(delete("/api/orders/{id}", orderId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("Success"))
+                .andExpect(jsonPath("$.data.id").value(orderId));
     }
 
     @Test
     public void testDeleteOrder_Failure_NotFound() throws Exception {
-        // todo: Send DELETE request to /api/orders/{id} with a non-existent id (e.g. 999999)
-        // todo: Assert status 404 Not Found
-        fail("todo: Implement test");
+        mockMvc.perform(delete("/api/orders/{id}", 999999))
+                .andExpect(status().isNotFound());
     }
 }
