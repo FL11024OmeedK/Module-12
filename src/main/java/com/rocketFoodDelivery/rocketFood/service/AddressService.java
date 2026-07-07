@@ -22,7 +22,7 @@ import com.rocketFoodDelivery.rocketFood.dtos.address.ApiAddressDTO;
 import com.rocketFoodDelivery.rocketFood.repository.AddressRepository;
 import com.rocketFoodDelivery.rocketFood.repository.RestaurantRepository;
 
-@Service       
+@Service
 public class AddressService {
 
     @Autowired
@@ -61,27 +61,68 @@ public class AddressService {
 
 
     // ==================== DTO-Based Service Methods (used by API controller) ====================
-    // todo: Implement service methods that use DTOs for input/output.
+    // These methods take/return DTOs and delegate to the native SQL repository methods.
 
 
-    // CREATE - Create an address from DTO
-    // todo: Implement service method to create an address from DTO, return created DTO with ID
-    
+    // CREATE - Insert a new address from a DTO and return it with its generated id.
+    // @Transactional is REQUIRED: saveAddress() and getLastInsertedId() must run on the SAME
+    // database connection, otherwise LAST_INSERT_ID() would not see the row we just inserted.
+    @Transactional
+    public ApiAddressDTO createAddress(ApiAddressDTO addressDto) {
+        addressRepository.saveAddress(
+                addressDto.getStreetAddress(),
+                addressDto.getCity(),
+                addressDto.getPostalCode());
 
-    // READ - Get all addresses as DTOs
-    // todo: Implement service method to get all addresses as DTOs
+        int newId = addressRepository.getLastInsertedId();
+        addressDto.setId(newId);
+        return addressDto;
+    }
 
 
-    // READ - Get an address by ID as DTO
-    // todo: Implement service method to get an address by ID as DTO, return Optional.empty() if not found
+    // READ - Return every address as a DTO.
+    public List<ApiAddressDTO> getAllAddressesAsDtos() {
+        return addressRepository.findAllAddresses().stream()
+                .map(this::mapAddressToDTO)
+                .collect(Collectors.toList());
+    }
 
 
-    // UPDATE - Update an address from DTO
-    // todo: Implement service method to update an address from DTO, return updated DTO, or Optional.empty() if not found
+    // READ - Return a single address as a DTO, or Optional.empty() if it does not exist.
+    public Optional<ApiAddressDTO> getAddressByIdAsDto(int id) {
+        return addressRepository.findAddressById(id)
+                .map(this::mapAddressToDTO);
+    }
 
 
-    // DELETE - Delete an address by ID, return true if found
-    // todo: Implement service method to delete an address by ID, return true if found and deleted, false if not found
+    // UPDATE - Update an existing address from a DTO.
+    // Returns the updated DTO, or Optional.empty() if no address has the given id.
+    @Transactional
+    public Optional<ApiAddressDTO> updateAddress(int id, ApiAddressDTO addressDto) {
+        if (addressRepository.findAddressById(id).isEmpty()) {
+            return Optional.empty();
+        }
+
+        addressRepository.updateAddress(
+                id,
+                addressDto.getStreetAddress(),
+                addressDto.getCity(),
+                addressDto.getPostalCode());
+
+        addressDto.setId(id);
+        return Optional.of(addressDto);
+    }
+
+
+    // DELETE - Delete an address by id. Returns true if it existed and was deleted, false otherwise.
+    @Transactional
+    public boolean deleteAddress(int id) {
+        if (addressRepository.findAddressById(id).isEmpty()) {
+            return false;
+        }
+        addressRepository.deleteAddressById(id);
+        return true;
+    }
 
 
     // HELPER - Method to map Address entity to DTO
