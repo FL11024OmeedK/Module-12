@@ -1,9 +1,29 @@
 package com.rocketFoodDelivery.rocketFood.dtos.order;
 
-// todo: add necessary imports (lombok, jackson)
+// Jackson - JSON field mapping
+import com.fasterxml.jackson.annotation.JsonProperty;
 
-// todo: add Lombok annotations (@Getter, @Setter, @AllArgsConstructor, @NoArgsConstructor)
+// Lombok - Code generation
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+
+/**
+ * Request DTO for updating an order: reassigns customer, restaurant, and (optionally) courier.
+ */
+@Getter
+@Setter
+@AllArgsConstructor
+@NoArgsConstructor
 public class ApiUpdateOrderDTO {
-    // todo: add fields for Order update DTO
-    // Consider: @JsonProperty for snake_case mapping
+
+    @JsonProperty("customer_id")
+    private int customerId;
+
+    @JsonProperty("restaurant_id")
+    private int restaurantId;
+
+    @JsonProperty("courier_id")
+    private Integer courierId;
 }

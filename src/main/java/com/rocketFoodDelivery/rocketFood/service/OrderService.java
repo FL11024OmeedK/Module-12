@@ -2,8 +2,10 @@ package com.rocketFoodDelivery.rocketFood.service;
 
 // Java standard library
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 // Spring Framework
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,20 +18,34 @@ import jakarta.persistence.PersistenceContext;
 
 // Project models
 import com.rocketFoodDelivery.rocketFood.models.Courier;
+import com.rocketFoodDelivery.rocketFood.models.Customer;
 import com.rocketFoodDelivery.rocketFood.models.Order;
+import com.rocketFoodDelivery.rocketFood.models.OrderStatus;
+import com.rocketFoodDelivery.rocketFood.models.Product;
 import com.rocketFoodDelivery.rocketFood.models.ProductOrder;
+import com.rocketFoodDelivery.rocketFood.models.Restaurant;
 
 // Project DTOs
 import com.rocketFoodDelivery.rocketFood.dtos.order.ApiAssignCourierDTO;
+import com.rocketFoodDelivery.rocketFood.dtos.order.ApiCreateOrderDTO;
 import com.rocketFoodDelivery.rocketFood.dtos.order.ApiOrderDTO;
+import com.rocketFoodDelivery.rocketFood.dtos.order.ApiUpdateOrderDTO;
 import com.rocketFoodDelivery.rocketFood.dtos.order.ApiUpdateRatingDTO;
 import com.rocketFoodDelivery.rocketFood.dtos.product.ApiProductForOrderApiDTO;
 
+// Project exceptions
+import com.rocketFoodDelivery.rocketFood.exception.BadRequestException;
+
 // Project repositories
 import com.rocketFoodDelivery.rocketFood.repository.CourierRepository;
+import com.rocketFoodDelivery.rocketFood.repository.CustomerRepository;
 import com.rocketFoodDelivery.rocketFood.repository.OrderRepository;
+import com.rocketFoodDelivery.rocketFood.repository.OrderStatusRepository;
+import com.rocketFoodDelivery.rocketFood.repository.ProductOrderRepository;
+import com.rocketFoodDelivery.rocketFood.repository.ProductRepository;
+import com.rocketFoodDelivery.rocketFood.repository.RestaurantRepository;
 
-@Service       
+@Service
 public class OrderService {
 
     @Autowired
@@ -37,6 +53,21 @@ public class OrderService {
 
     @Autowired
     private CourierRepository courierRepository;
+
+    @Autowired
+    private CustomerRepository customerRepository;
+
+    @Autowired
+    private RestaurantRepository restaurantRepository;
+
+    @Autowired
+    private ProductRepository productRepository;
+
+    @Autowired
+    private OrderStatusRepository orderStatusRepository;
+
+    @Autowired
+    private ProductOrderRepository productOrderRepository;
 
     @PersistenceContext
     private EntityManager entityManager;
@@ -91,21 +122,76 @@ public class OrderService {
     }
 
     // ==================== DTO-Based Service Methods (used by API controller) ====================
-    // todo: Implement service methods that use DTOs for input/output.
 
 
-    // CREATE - Create an address from DTO
-    // todo: Implement service method to create an address from DTO, return created DTO with ID
-    
+    // CREATE - Create an order (with its product line items) from a DTO.
+    // @Transactional keeps saveOrder(), getLastInsertedId(), and the line-item inserts on the same connection.
+    @Transactional
+    public ApiOrderDTO createOrder(ApiCreateOrderDTO dto) {
+        if (dto.getProducts() == null || dto.getProducts().isEmpty()) {
+            throw new BadRequestException("Products are required");
+        }
 
-    // READ - Get all addresses as DTOs
-    // todo: Implement service method to get all addresses as DTOs
+        Restaurant restaurant = restaurantRepository.findById(dto.getRestaurantId())
+                .orElseThrow(() -> new BadRequestException("Restaurant with id " + dto.getRestaurantId() + " not found"));
+        Customer customer = customerRepository.findById(dto.getCustomerId())
+                .orElseThrow(() -> new BadRequestException("Customer with id " + dto.getCustomerId() + " not found"));
+
+        // Validate each product: exists, belongs to the restaurant, and is not duplicated.
+        Set<Integer> seenProductIds = new HashSet<>();
+        List<Product> products = new ArrayList<>();
+        for (ApiCreateOrderDTO.ProductItem item : dto.getProducts()) {
+            if (!seenProductIds.add(item.getId())) {
+                throw new BadRequestException("Cannot add the same product twice: product id " + item.getId());
+            }
+            if (item.getQuantity() < 1) {
+                throw new BadRequestException("Product quantity must be at least 1");
+            }
+            Product product = productRepository.findById(item.getId())
+                    .orElseThrow(() -> new BadRequestException("Product with id " + item.getId() + " not found"));
+            if (product.getRestaurant() == null || product.getRestaurant().getId() != restaurant.getId()) {
+                throw new BadRequestException("Product with id " + item.getId() + " does not belong to restaurant " + restaurant.getId());
+            }
+            products.add(product);
+        }
+
+        // New orders start in the "pending" status.
+        OrderStatus pending = orderStatusRepository.findAll().stream()
+                .filter(status -> "pending".equalsIgnoreCase(status.getName()))
+                .findFirst()
+                .orElseThrow(() -> new BadRequestException("Pending order status not found"));
+
+        orderRepository.saveOrder(restaurant.getId(), customer.getId(), pending.getId());
+        int newOrderId = orderRepository.getLastInsertedId();
+
+        // Persist one product_order line item per requested product (unit cost = product cost).
+        Order orderRef = entityManager.getReference(Order.class, newOrderId);
+        for (int i = 0; i < dto.getProducts().size(); i++) {
+            ApiCreateOrderDTO.ProductItem item = dto.getProducts().get(i);
+            Product product = products.get(i);
+            ProductOrder productOrder = ProductOrder.builder()
+                    .order(orderRef)
+                    .product(product)
+                    .productQuantity(item.getQuantity())
+                    .productUnitCost(product.getCost())
+                    .build();
+            productOrderRepository.save(productOrder);
+        }
+        entityManager.flush();
+        entityManager.clear();
+
+        return orderRepository.findOrderById(newOrderId)
+                .map(this::mapOrderToDTO)
+                .orElseThrow(() -> new BadRequestException("Failed to create order"));
+    }
 
 
-    // READ - Get an address by ID as DTO
-    // todo: Implement service method to get an address by ID as DTO, return Optional.empty() if not found
+    // READ - Get an order by ID as a DTO, or Optional.empty() if it does not exist.
+    public Optional<ApiOrderDTO> getOrderByIdAsDto(int id) {
+        return orderRepository.findOrderById(id).map(this::mapOrderToDTO);
+    }
 
-    
+
     // READ - Get orders by type (customer/restaurant/courier) and ID as DTOs
     public List<ApiOrderDTO> getOrdersByTypeAndId(String type, int id) {
         List<Order> orders;
@@ -127,8 +213,32 @@ public class OrderService {
     }
 
 
-    // UPDATE - Update an address from DTO
-    // todo: Implement service method to update an address from DTO, return updated DTO, or Optional.empty() if not found
+    // UPDATE - Update an order from a DTO (reassign customer, restaurant, and optional courier).
+    // Returns the updated DTO, or Optional.empty() if no order has the given id.
+    @Transactional
+    public Optional<ApiOrderDTO> updateOrder(int id, ApiUpdateOrderDTO dto) {
+        Optional<Order> existing = orderRepository.findById(id);
+        if (existing.isEmpty()) return Optional.empty();
+        Order order = existing.get();
+
+        Restaurant restaurant = restaurantRepository.findById(dto.getRestaurantId())
+                .orElseThrow(() -> new BadRequestException("Restaurant with id " + dto.getRestaurantId() + " not found"));
+        Customer customer = customerRepository.findById(dto.getCustomerId())
+                .orElseThrow(() -> new BadRequestException("Customer with id " + dto.getCustomerId() + " not found"));
+        order.setRestaurant(restaurant);
+        order.setCustomer(customer);
+
+        if (dto.getCourierId() != null) {
+            Courier courier = courierRepository.findById(dto.getCourierId())
+                    .orElseThrow(() -> new BadRequestException("Courier with id " + dto.getCourierId() + " not found"));
+            order.setCourier(courier);
+        }
+
+        this.saveOrder(order);
+        entityManager.flush();
+        entityManager.clear();
+        return orderRepository.findOrderById(id).map(this::mapOrderToDTO);
+    }
 
 
     // UPDATE - Assign a courier to an order
@@ -162,10 +272,18 @@ public class OrderService {
     }
 
 
-    // DELETE - Delete an address by ID, return true if found
-    // todo: Implement service method to delete an address by ID, return true if found and deleted, false if not found
+    // DELETE - Delete an order by id. Returns true if it existed and was deleted, false otherwise.
+    // JPA deleteById cascades to the order's product_orders (cascade = ALL, orphanRemoval = true).
+    @Transactional
+    public boolean deleteOrder(int id) {
+        if (orderRepository.findById(id).isEmpty()) {
+            return false;
+        }
+        orderRepository.deleteById(id);
+        return true;
+    }
 
-    
+
     // HELPER - Method to map Address entity to DTO
     private ApiOrderDTO mapOrderToDTO(Order order) {
         ApiOrderDTO dto = new ApiOrderDTO();

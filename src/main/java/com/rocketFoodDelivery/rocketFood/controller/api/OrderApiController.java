@@ -1,13 +1,16 @@
 package com.rocketFoodDelivery.rocketFood.controller.api;
 
 import com.rocketFoodDelivery.rocketFood.dtos.order.ApiAssignCourierDTO;
+import com.rocketFoodDelivery.rocketFood.dtos.order.ApiCreateOrderDTO;
 import com.rocketFoodDelivery.rocketFood.dtos.order.ApiOrderDTO;
+import com.rocketFoodDelivery.rocketFood.dtos.order.ApiUpdateOrderDTO;
 import com.rocketFoodDelivery.rocketFood.dtos.order.ApiUpdateRatingDTO;
 import com.rocketFoodDelivery.rocketFood.exception.BadRequestException;
 import com.rocketFoodDelivery.rocketFood.exception.ResourceNotFoundException;
 import com.rocketFoodDelivery.rocketFood.service.OrderService;
 import com.rocketFoodDelivery.rocketFood.util.ResponseBuilder;
 
+import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -27,10 +30,6 @@ public class OrderApiController {
     // ==================== DTO-Based API Endpoints ====================
 
 
-    // GET /api/orders - Get orders by type and id
-    // todo: implement get orders endpoint
-
-    
     // GET /api/orders?type={type}&id={id} - Get orders by type and id
     @GetMapping("/api/orders")
     public ResponseEntity<Object> getOrders(
@@ -43,16 +42,33 @@ public class OrderApiController {
         return ResponseEntity.ok(orders);
     }
 
+
     // POST /api/orders - Create new order
-    // todo: implement create endpoint
+    @PostMapping("/api/orders")
+    public ResponseEntity<Object> createOrder(@Valid @RequestBody ApiCreateOrderDTO dto) {
+        ApiOrderDTO created = orderService.createOrder(dto);
+        return ResponseBuilder.buildCreatedResponse(created);
+    }
 
 
     // PUT /api/orders/{id} - Update order by ID
-    // todo: implement update endpoint
+    @PutMapping("/api/orders/{id}")
+    public ResponseEntity<Object> updateOrder(@PathVariable int id, @RequestBody ApiUpdateOrderDTO dto) {
+        ApiOrderDTO updated = orderService.updateOrder(id, dto)
+                .orElseThrow(() -> new ResourceNotFoundException(String.format("Order with id %d not found", id)));
+        return ResponseBuilder.buildOkResponse(updated);
+    }
 
 
     // DELETE /api/orders/{id} - Delete order by ID
-    // todo: implement delete endpoint
+    @DeleteMapping("/api/orders/{id}")
+    public ResponseEntity<Object> deleteOrder(@PathVariable int id) {
+        // Fetch first so we can (a) return the deleted data and (b) 404 if it never existed.
+        ApiOrderDTO order = orderService.getOrderByIdAsDto(id)
+                .orElseThrow(() -> new ResourceNotFoundException(String.format("Order with id %d not found", id)));
+        orderService.deleteOrder(id);
+        return ResponseBuilder.buildOkResponse(order);
+    }
 
 
     // ==================== Custom Endpoints ====================
