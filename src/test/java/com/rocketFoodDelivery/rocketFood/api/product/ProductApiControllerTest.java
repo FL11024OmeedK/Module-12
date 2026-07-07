@@ -1,19 +1,22 @@
 package com.rocketFoodDelivery.rocketFood.api.product;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.rocketFoodDelivery.rocketFood.dtos.product.ApiCreateProductDTO;
+import com.rocketFoodDelivery.rocketFood.repository.RestaurantRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.transaction.annotation.Transactional;
 
-import static org.junit.jupiter.api.Assertions.fail;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @SpringBootTest
 @AutoConfigureMockMvc(addFilters = false)
+@Transactional // roll back each test's DB writes so tests stay independent and non-destructive
 public class ProductApiControllerTest {
 
     @Autowired
@@ -21,6 +24,33 @@ public class ProductApiControllerTest {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @Autowired
+    private RestaurantRepository restaurantRepository;
+
+    private int seededRestaurantId() {
+        return restaurantRepository.findAll().get(0).getId();
+    }
+
+    // Helper: build a valid product DTO referencing a seeded restaurant
+    private ApiCreateProductDTO buildProduct(String name, int cost) {
+        ApiCreateProductDTO dto = new ApiCreateProductDTO();
+        dto.setRestaurantId(seededRestaurantId());
+        dto.setName(name);
+        dto.setDescription("A tasty test item");
+        dto.setCost(cost);
+        return dto;
+    }
+
+    // Helper: POST a product and return its generated id
+    private int createProductAndGetId() throws Exception {
+        String response = mockMvc.perform(post("/api/products")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(buildProduct("Test Product", 500))))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        return objectMapper.readTree(response).path("data").path("id").asInt();
+    }
 
     // ==================== GET /api/products ====================
 
@@ -36,11 +66,10 @@ public class ProductApiControllerTest {
 
     @Test
     public void testGetProductById_Success() throws Exception {
-        // todo: Send GET request to /api/products/{id} with a known valid id (e.g. 1)
-        // todo: Assert status 200 OK
-        // todo: Assert response contains "message": "Success"
-        // todo: Assert response contains "data.id" matching the requested id
-        fail("todo: Implement test");
+        mockMvc.perform(get("/api/products/{id}", 1))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("Success"))
+                .andExpect(jsonPath("$.data.id").value(1));
     }
 
     @Test
@@ -53,12 +82,17 @@ public class ProductApiControllerTest {
 
     @Test
     public void testCreateProduct_Success() throws Exception {
-        // todo: Build a valid ApiCreateProductDTO (restaurant_id, name, description, cost)
-        // todo: Send POST request to /api/products with JSON body
-        // todo: Assert status 201 Created
-        // todo: Assert response contains "message": "Success"
-        // todo: Assert response data fields match the input
-        fail("todo: Implement test");
+        ApiCreateProductDTO newProduct = buildProduct("New Burger", 899);
+
+        mockMvc.perform(post("/api/products")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(newProduct)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.message").value("Success"))
+                .andExpect(jsonPath("$.data.id").isNumber())
+                .andExpect(jsonPath("$.data.restaurant_id").value(newProduct.getRestaurantId()))
+                .andExpect(jsonPath("$.data.name").value("New Burger"))
+                .andExpect(jsonPath("$.data.cost").value(899));
     }
 
     @Test
@@ -75,38 +109,46 @@ public class ProductApiControllerTest {
 
     @Test
     public void testUpdateProduct_Success() throws Exception {
-        // todo: Build a valid ApiCreateProductDTO for update
-        // todo: Send PUT request to /api/products/{id} with JSON body and a known valid id
-        // todo: Assert status 200 OK
-        // todo: Assert response contains "message": "Success"
-        // todo: Assert response data fields reflect the update
-        fail("todo: Implement test");
+        int id = createProductAndGetId();
+
+        ApiCreateProductDTO update = buildProduct("Updated Burger", 999);
+        update.setDescription("An updated description");
+
+        mockMvc.perform(put("/api/products/{id}", id)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(update)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("Success"))
+                .andExpect(jsonPath("$.data.id").value(id))
+                .andExpect(jsonPath("$.data.name").value("Updated Burger"))
+                .andExpect(jsonPath("$.data.cost").value(999));
     }
 
     @Test
     public void testUpdateProduct_Failure_NotFound() throws Exception {
-        // todo: Build a valid ApiCreateProductDTO for update
-        // todo: Send PUT request to /api/products/{id} with a non-existent id (e.g. 999999)
-        // todo: Assert status 404 Not Found
-        fail("todo: Implement test");
+        ApiCreateProductDTO update = buildProduct("Ghost Product", 100);
+
+        mockMvc.perform(put("/api/products/{id}", 999999)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(update)))
+                .andExpect(status().isNotFound());
     }
 
     // ==================== DELETE /api/products/{id} ====================
 
     @Test
     public void testDeleteProduct_Success() throws Exception {
-        // todo: Create a fresh product first (POST) to safely delete
-        // todo: Extract the created id from the response
-        // todo: Send DELETE request to /api/products/{id}
-        // todo: Assert status 200 OK
-        // todo: Assert response contains "message": "Success"
-        fail("todo: Implement test");
+        int id = createProductAndGetId();
+
+        mockMvc.perform(delete("/api/products/{id}", id))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("Success"))
+                .andExpect(jsonPath("$.data.id").value(id));
     }
 
     @Test
     public void testDeleteProduct_Failure_NotFound() throws Exception {
-        // todo: Send DELETE request to /api/products/{id} with a non-existent id (e.g. 999999)
-        // todo: Assert status 404 Not Found
-        fail("todo: Implement test");
+        mockMvc.perform(delete("/api/products/{id}", 999999))
+                .andExpect(status().isNotFound());
     }
 }

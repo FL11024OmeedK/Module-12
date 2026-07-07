@@ -1,9 +1,32 @@
 package com.rocketFoodDelivery.rocketFood.dtos.product;
 
-// todo: add necessary imports (lombok, jackson)
+// Jackson - JSON field mapping
+import com.fasterxml.jackson.annotation.JsonProperty;
 
-// todo: add Lombok annotations (@Getter, @Setter, @AllArgsConstructor, @NoArgsConstructor)
+// Lombok - Code generation
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+
+/**
+ * Response DTO for the Product table.
+ * Internal timestamps are omitted; the restaurant is referenced by id.
+ */
+@Getter
+@Setter
+@AllArgsConstructor
+@NoArgsConstructor
 public class ApiProductDTO {
-    // todo: add fields for Product response DTO
-    // Consider: @JsonProperty for snake_case mapping
+
+    private int id;
+
+    @JsonProperty("restaurant_id")
+    private int restaurantId;
+
+    private String name;
+
+    private String description;
+
+    private int cost;
 }
