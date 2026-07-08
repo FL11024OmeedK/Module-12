@@ -1,7 +1,6 @@
 package com.rocketFoodDelivery.rocketFood.service;
 
 // Java standard library
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -21,7 +20,7 @@ import com.rocketFoodDelivery.rocketFood.dtos.productOrder.ApiProductOrderDTO;
 // Project repositories
 import com.rocketFoodDelivery.rocketFood.repository.ProductOrderRepository;
 
-@Service       
+@Service
 public class ProductOrderService {
 
     @Autowired
@@ -108,30 +107,65 @@ public class ProductOrderService {
     }
 
     // ==================== DTO-Based Service Methods (used by API controller) ====================
-    // todo: Implement service methods that use DTOs for input/output.
 
 
-    // CREATE - Create an address from DTO
-    // todo: Implement service method to create an address from DTO, return created DTO with ID
-    
-
-    // READ - Get all addresses as DTOs
-    // todo: Implement service method to get all addresses as DTOs
-
-
-    // READ - Get an address by ID as DTO
-    // todo: Implement service method to get an address by ID as DTO, return Optional.empty() if not found
-
-
-    // UPDATE - Update an address from DTO
-    // todo: Implement service method to update an address from DTO, return updated DTO, or Optional.empty() if not found
+    // CREATE - Create a product order from a DTO. Reuses the validated createProductOrder(...) business method.
+    @Transactional
+    public ApiProductOrderDTO createProductOrderFromDto(ApiProductOrderDTO dto) {
+        ProductOrder created = this.createProductOrder(
+                dto.getProductId(),
+                dto.getOrderId(),
+                dto.getProductQuantity(),
+                dto.getProductUnitCost());
+        return mapProductOrderToDTO(created);
+    }
 
 
-    // DELETE - Delete an address by ID, return true if found
-    // todo: Implement service method to delete an address by ID, return true if found and deleted, false if not found
+    // READ - Return every product order as a DTO.
+    public List<ApiProductOrderDTO> getAllProductOrdersAsDtos() {
+        return productOrderRepository.findAllProductOrders().stream()
+                .map(this::mapProductOrderToDTO)
+                .toList();
+    }
 
 
-    // HELPER - Method to map Address entity to DTO
+    // READ - Return a single product order as a DTO, or Optional.empty() if it does not exist.
+    public Optional<ApiProductOrderDTO> getProductOrderByIdAsDto(int id) {
+        return productOrderRepository.findProductOrderById(id)
+                .map(this::mapProductOrderToDTO);
+    }
+
+
+    // UPDATE - Update a product order from a DTO.
+    // Returns the updated DTO, or Optional.empty() if no product order has the given id (-> 404).
+    // Reuses the validated updateProductOrder(...) business method for the actual update.
+    @Transactional
+    public Optional<ApiProductOrderDTO> updateProductOrderFromDto(int id, ApiProductOrderDTO dto) {
+        if (productOrderRepository.findProductOrderById(id).isEmpty()) {
+            return Optional.empty();
+        }
+        this.updateProductOrder(
+                id,
+                dto.getProductId(),
+                dto.getOrderId(),
+                dto.getProductQuantity(),
+                dto.getProductUnitCost());
+        return this.findProductOrderById(id).map(this::mapProductOrderToDTO);
+    }
+
+
+    // DELETE - Delete a product order by id. Returns true if it existed and was deleted, false otherwise.
+    @Transactional
+    public boolean deleteProductOrder(int id) {
+        if (productOrderRepository.findProductOrderById(id).isEmpty()) {
+            return false;
+        }
+        productOrderRepository.deleteProductOrderById(id);
+        return true;
+    }
+
+
+    // HELPER - Method to map ProductOrder entity to DTO
     private ApiProductOrderDTO mapProductOrderToDTO(ProductOrder po) {
         ApiProductOrderDTO dto = new ApiProductOrderDTO();
         dto.setId(po.getId());
