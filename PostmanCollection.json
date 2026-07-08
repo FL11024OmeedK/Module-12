@@ -1,0 +1,150 @@
+{
+  "info": {
+    "name": "Rocket Food Delivery REST API",
+    "description": "Manual verification collection for the Module 12 Rocket Food Delivery API.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080"
+    },
+    {
+      "key": "token",
+      "value": ""
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "Auth - Login",
+      "request": {
+        "auth": {
+          "type": "noauth"
+        },
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"both@gmail.com\",\n  \"password\": \"password\"\n}"
+        },
+        "url": "{{baseUrl}}/api/auth"
+      }
+    },
+    {
+      "name": "Addresses - List",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/addresses"
+      }
+    },
+    {
+      "name": "Restaurants - List",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/restaurants"
+      }
+    },
+    {
+      "name": "Products - List",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/products"
+      }
+    },
+    {
+      "name": "Customers - List",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/customers"
+      }
+    },
+    {
+      "name": "Couriers - List",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/couriers"
+      }
+    },
+    {
+      "name": "Courier Statuses - List",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/courier-statuses"
+      }
+    },
+    {
+      "name": "Employees - List",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/employees"
+      }
+    },
+    {
+      "name": "Order Statuses - List",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/order-statuses"
+      }
+    },
+    {
+      "name": "Orders - Customer List",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/orders?type=customer&id=1"
+      }
+    },
+    {
+      "name": "Orders - Create",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"customer_id\": 1,\n  \"restaurant_id\": 1,\n  \"products\": [\n    {\n      \"id\": 1,\n      \"quantity\": 2\n    }\n  ]\n}"
+        },
+        "url": "{{baseUrl}}/api/orders"
+      }
+    },
+    {
+      "name": "Product Orders - List",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/product-orders"
+      }
+    },
+    {
+      "name": "Users - List",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/users"
+      }
+    },
+    {
+      "name": "Account - Current",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/account/1"
+      }
+    }
+  ]
+}

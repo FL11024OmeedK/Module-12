@@ -39,7 +39,7 @@ public class OrderApiController {
             throw new BadRequestException("Type must be 'restaurant' or 'customer' or 'courier'");
         }
         List<ApiOrderDTO> orders = orderService.getOrdersByTypeAndId(type, id);
-        return ResponseEntity.ok(orders);
+        return ResponseBuilder.buildOkResponse(orders);
     }
 
 
