@@ -1,12 +1,15 @@
 package com.rocketFoodDelivery.rocketFood.controller.api;
 
 import com.rocketFoodDelivery.rocketFood.dtos.user.ApiAccountDTO;
+import com.rocketFoodDelivery.rocketFood.dtos.user.ApiCreateUserDTO;
 import com.rocketFoodDelivery.rocketFood.dtos.user.ApiUpdateAccountDTO;
+import com.rocketFoodDelivery.rocketFood.dtos.user.ApiUserDTO;
 import com.rocketFoodDelivery.rocketFood.exception.BadRequestException;
 import com.rocketFoodDelivery.rocketFood.exception.ResourceNotFoundException;
 import com.rocketFoodDelivery.rocketFood.service.UserService;
 import com.rocketFoodDelivery.rocketFood.util.ResponseBuilder;
 
+import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -24,23 +27,47 @@ public class UserApiController {
 
 
     // GET /api/users - Get all users
-    // todo: implement get all
+    @GetMapping("/api/users")
+    public ResponseEntity<Object> getAllUsers() {
+        return ResponseBuilder.buildOkResponse(userService.getAllUsersAsDtos());
+    }
 
 
     // GET /api/users/{id} - Get user by ID
-    // todo: implement get by id endpoint
+    @GetMapping("/api/users/{id}")
+    public ResponseEntity<Object> getUserById(@PathVariable int id) {
+        ApiUserDTO user = userService.getUserByIdAsDto(id)
+                .orElseThrow(() -> new ResourceNotFoundException("User with id " + id + " not found"));
+        return ResponseBuilder.buildOkResponse(user);
+    }
 
 
     // POST /api/users - Create new user
-    // todo: implement create endpoint
+    @PostMapping("/api/users")
+    public ResponseEntity<Object> createUser(@Valid @RequestBody ApiCreateUserDTO userDto) {
+        ApiUserDTO created = userService.createUser(userDto);
+        return ResponseBuilder.buildCreatedResponse(created);
+    }
 
 
     // PUT /api/users/{id} - Update user by ID
-    // todo: implement update endpoint
+    @PutMapping("/api/users/{id}")
+    public ResponseEntity<Object> updateUser(@PathVariable int id, @Valid @RequestBody ApiCreateUserDTO userDto) {
+        ApiUserDTO updated = userService.updateUser(id, userDto)
+                .orElseThrow(() -> new ResourceNotFoundException("User with id " + id + " not found"));
+        return ResponseBuilder.buildOkResponse(updated);
+    }
 
 
     // DELETE /api/users/{id} - Delete user by ID
-    // todo: implement delete endpoint
+    @DeleteMapping("/api/users/{id}")
+    public ResponseEntity<Object> deleteUser(@PathVariable int id) {
+        // Fetch first so we can (a) return the deleted data and (b) 404 if it never existed.
+        ApiUserDTO user = userService.getUserByIdAsDto(id)
+                .orElseThrow(() -> new ResourceNotFoundException("User with id " + id + " not found"));
+        userService.deleteUser(id);
+        return ResponseBuilder.buildOkResponse(user);
+    }
 
 
     // ==================== Custom Endpoints ====================

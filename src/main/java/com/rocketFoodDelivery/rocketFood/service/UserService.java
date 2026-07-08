@@ -17,15 +17,17 @@ import com.rocketFoodDelivery.rocketFood.models.User;
 
 // Project DTOs
 import com.rocketFoodDelivery.rocketFood.dtos.user.ApiAccountDTO;
+import com.rocketFoodDelivery.rocketFood.dtos.user.ApiCreateUserDTO;
 import com.rocketFoodDelivery.rocketFood.dtos.user.ApiUpdateAccountDTO;
 import com.rocketFoodDelivery.rocketFood.dtos.user.ApiUserDTO;
+
+// Project exceptions
+import com.rocketFoodDelivery.rocketFood.exception.BadRequestException;
 
 // Project repositories
 import com.rocketFoodDelivery.rocketFood.repository.UserRepository;
 
-// Project services
-
-@Service       
+@Service
 public class UserService {
 
     @Autowired
@@ -68,30 +70,71 @@ public class UserService {
     }
 
     // ==================== DTO-Based Service Methods (used by API controller) ====================
-    // todo: Implement service methods that use DTOs for input/output.
 
 
-    // CREATE - Create an address from DTO
-    // todo: Implement service method to create an address from DTO, return created DTO with ID
-    
+    // CREATE - Insert a new user from a DTO and return it with its generated id (never the password).
+    // @Transactional keeps saveUser() and getLastInsertedId() on the same connection.
+    @Transactional
+    public ApiUserDTO createUser(ApiCreateUserDTO dto) {
+        // Email must be unique (also enforced by the DB unique constraint).
+        if (userRepository.findUserByEmail(dto.getEmail()).isPresent()) {
+            throw new BadRequestException("Email " + dto.getEmail() + " is already in use");
+        }
 
-    // READ - Get all addresses as DTOs
-    // todo: Implement service method to get all addresses as DTOs
+        userRepository.saveUser(dto.getName(), dto.getEmail(), dto.getPassword());
 
-
-    // READ - Get an address by ID as DTO
-    // todo: Implement service method to get an address by ID as DTO, return Optional.empty() if not found
-
-
-    // UPDATE - Update an address from DTO
-    // todo: Implement service method to update an address from DTO, return updated DTO, or Optional.empty() if not found
-
-
-    // DELETE - Delete an address by ID, return true if found
-    // todo: Implement service method to delete an address by ID, return true if found and deleted, false if not found
+        int newId = userRepository.getLastInsertedId();
+        return userRepository.findUserById(newId)
+                .map(this::mapUserToDTO)
+                .orElseThrow(() -> new BadRequestException("Failed to create user"));
+    }
 
 
-    // HELPER - Method to map Address entity to DTO
+    // READ - Return every user as a DTO.
+    public List<ApiUserDTO> getAllUsersAsDtos() {
+        return userRepository.findAllUsers().stream()
+                .map(this::mapUserToDTO)
+                .toList();
+    }
+
+
+    // READ - Return a single user as a DTO, or Optional.empty() if it does not exist.
+    public Optional<ApiUserDTO> getUserByIdAsDto(int id) {
+        return userRepository.findUserById(id)
+                .map(this::mapUserToDTO);
+    }
+
+
+    // UPDATE - Update an existing user from a DTO (name, email, password).
+    // Returns the updated DTO, or Optional.empty() if no user has the given id.
+    @Transactional
+    public Optional<ApiUserDTO> updateUser(int id, ApiCreateUserDTO dto) {
+        if (userRepository.findUserById(id).isEmpty()) {
+            return Optional.empty();
+        }
+
+        userRepository.updateUser(id, dto.getName(), dto.getEmail(), dto.getPassword());
+
+        ApiUserDTO result = new ApiUserDTO();
+        result.setId(id);
+        result.setName(dto.getName());
+        result.setEmail(dto.getEmail());
+        return Optional.of(result);
+    }
+
+
+    // DELETE - Delete a user by id. Returns true if it existed and was deleted, false otherwise.
+    @Transactional
+    public boolean deleteUser(int id) {
+        if (userRepository.findUserById(id).isEmpty()) {
+            return false;
+        }
+        userRepository.deleteUserById(id);
+        return true;
+    }
+
+
+    // HELPER - Method to map User entity to DTO (id, name, email only — never the password)
     private ApiUserDTO mapUserToDTO(User user) {
         ApiUserDTO dto = new ApiUserDTO();
         dto.setId(user.getId());

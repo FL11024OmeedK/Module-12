@@ -1,19 +1,23 @@
 package com.rocketFoodDelivery.rocketFood.api.user;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.rocketFoodDelivery.rocketFood.dtos.user.ApiCreateUserDTO;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.transaction.annotation.Transactional;
 
-import static org.junit.jupiter.api.Assertions.fail;
+import java.util.UUID;
+
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @SpringBootTest
 @AutoConfigureMockMvc(addFilters = false)
+@Transactional // roll back each test's DB writes so tests stay independent and non-destructive
 public class UserApiControllerTest {
 
     @Autowired
@@ -21,6 +25,25 @@ public class UserApiControllerTest {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    // Helper: build a valid create/update DTO with a unique email (email is unique)
+    private ApiCreateUserDTO buildUser(String name) {
+        ApiCreateUserDTO dto = new ApiCreateUserDTO();
+        dto.setName(name);
+        dto.setEmail("user.test." + UUID.randomUUID() + "@example.com");
+        dto.setPassword("password");
+        return dto;
+    }
+
+    // Helper: POST a user and return its generated id
+    private int createUserAndGetId() throws Exception {
+        String response = mockMvc.perform(post("/api/users")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(buildUser("Test User"))))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        return objectMapper.readTree(response).path("data").path("id").asInt();
+    }
 
     // ==================== GET /api/users ====================
 
@@ -44,21 +67,26 @@ public class UserApiControllerTest {
 
     @Test
     public void testGetUserById_Failure_NotFound() throws Exception {
-        // todo: Send GET request to /api/users/{id} with a non-existent id (e.g. 999999)
-        // todo: Assert status 404 Not Found
-        fail("todo: Implement test");
+        mockMvc.perform(get("/api/users/{id}", 999999))
+                .andExpect(status().isNotFound());
     }
 
     // ==================== POST /api/users ====================
 
     @Test
     public void testCreateUser_Success() throws Exception {
-        // todo: Build a valid ApiCreateUserDTO (name, email, password) with a unique email
-        // todo: Send POST request to /api/users with JSON body
-        // todo: Assert status 201 Created
-        // todo: Assert response contains "message": "Success"
-        // todo: Assert response data name and email match the input
-        fail("todo: Implement test");
+        ApiCreateUserDTO newUser = buildUser("Jane Smith");
+
+        mockMvc.perform(post("/api/users")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(newUser)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.message").value("Success"))
+                .andExpect(jsonPath("$.data.id").isNumber())
+                .andExpect(jsonPath("$.data.name").value("Jane Smith"))
+                .andExpect(jsonPath("$.data.email").value(newUser.getEmail()))
+                // password must never be returned
+                .andExpect(jsonPath("$.data.password").doesNotExist());
     }
 
     @Test
@@ -75,32 +103,40 @@ public class UserApiControllerTest {
 
     @Test
     public void testUpdateUser_Success() throws Exception {
-        // todo: Build a valid ApiCreateUserDTO for update
-        // todo: Send PUT request to /api/users/{id} with JSON body and a known valid id
-        // todo: Assert status 200 OK
-        // todo: Assert response contains "message": "Success"
-        // todo: Assert response data fields reflect the update
-        fail("todo: Implement test");
+        int id = createUserAndGetId();
+
+        ApiCreateUserDTO update = buildUser("Jane Updated");
+
+        mockMvc.perform(put("/api/users/{id}", id)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(update)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("Success"))
+                .andExpect(jsonPath("$.data.id").value(id))
+                .andExpect(jsonPath("$.data.name").value("Jane Updated"))
+                .andExpect(jsonPath("$.data.email").value(update.getEmail()));
     }
 
     @Test
     public void testUpdateUser_Failure_NotFound() throws Exception {
-        // todo: Build a valid ApiCreateUserDTO for update
-        // todo: Send PUT request to /api/users/{id} with a non-existent id (e.g. 999999)
-        // todo: Assert status 404 Not Found
-        fail("todo: Implement test");
+        ApiCreateUserDTO update = buildUser("Ghost User");
+
+        mockMvc.perform(put("/api/users/{id}", 999999)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(update)))
+                .andExpect(status().isNotFound());
     }
 
     // ==================== DELETE /api/users/{id} ====================
 
     @Test
     public void testDeleteUser_Success() throws Exception {
-        // todo: Create a fresh user first (POST) to safely delete
-        // todo: Extract the created id from the response
-        // todo: Send DELETE request to /api/users/{id}
-        // todo: Assert status 200 OK
-        // todo: Assert response contains "message": "Success"
-        fail("todo: Implement test");
+        int id = createUserAndGetId();
+
+        mockMvc.perform(delete("/api/users/{id}", id))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("Success"))
+                .andExpect(jsonPath("$.data.id").value(id));
     }
 
     @Test
