@@ -1,7 +1,6 @@
 package com.rocketFoodDelivery.rocketFood.service;
 
 // Java standard library
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -13,18 +12,21 @@ import org.springframework.transaction.annotation.Transactional;
 // Project models
 import com.rocketFoodDelivery.rocketFood.models.Address;
 import com.rocketFoodDelivery.rocketFood.models.Restaurant;
-import com.rocketFoodDelivery.rocketFood.models.User;
 
 // Project DTOs
+import com.rocketFoodDelivery.rocketFood.dtos.address.ApiAddressDTO;
 import com.rocketFoodDelivery.rocketFood.dtos.restaurant.ApiCreateRestaurantDTO;
 import com.rocketFoodDelivery.rocketFood.dtos.restaurant.ApiRestaurantDTO;
-import com.rocketFoodDelivery.rocketFood.dtos.address.ApiAddressDTO;
+
+// Project exceptions
+import com.rocketFoodDelivery.rocketFood.exception.BadRequestException;
 
 // Project repositories
 import com.rocketFoodDelivery.rocketFood.repository.AddressRepository;
 import com.rocketFoodDelivery.rocketFood.repository.RestaurantRepository;
+import com.rocketFoodDelivery.rocketFood.repository.UserRepository;
 
-@Service       
+@Service
 public class RestaurantService {
 
     @Autowired
@@ -32,6 +34,9 @@ public class RestaurantService {
 
     @Autowired
     private AddressRepository addressRepository;
+
+    @Autowired
+    private UserRepository userRepository;
 
     // Constructor
     public RestaurantService(RestaurantRepository restaurantRepository, AddressRepository addressRepository){
@@ -72,30 +77,114 @@ public class RestaurantService {
     }
 
     // ==================== DTO-Based Service Methods (used by API controller) ====================
-    // todo: Implement service methods that use DTOs for input/output.
 
 
-    // CREATE - Create an address from DTO
-    // todo: Implement service method to create an address from DTO, return created DTO with ID
-    
+    // CREATE - Create a restaurant (and its address) from a DTO, return the detailed DTO.
+    // @Transactional keeps the address insert, saveRestaurant(), and getLastInsertedId() on one connection.
+    @Transactional
+    public ApiRestaurantDTO createRestaurant(ApiCreateRestaurantDTO dto) {
+        if (userRepository.findById(dto.getUserId()).isEmpty()) {
+            throw new BadRequestException("User with id " + dto.getUserId() + " not found");
+        }
+        if (dto.getAddress() == null) {
+            throw new BadRequestException("Address is required");
+        }
 
-    // READ - Get all addresses as DTOs
-    // todo: Implement service method to get all addresses as DTOs
+        // Persist the restaurant's address first (JPA) so we have its generated id.
+        ApiAddressDTO addressDto = dto.getAddress();
+        Address address = addressRepository.save(Address.builder()
+                .streetAddress(addressDto.getStreetAddress())
+                .city(addressDto.getCity())
+                .postalCode(addressDto.getPostalCode())
+                .build());
+
+        restaurantRepository.saveRestaurant(
+                dto.getUserId(),
+                address.getId(),
+                dto.getName(),
+                dto.getPriceRange(),
+                dto.getPhone(),
+                dto.getEmail());
+        int newId = restaurantRepository.getLastInsertedId();
+
+        return buildDetailedDTO(newId, dto.getName(), dto.getPriceRange(), dto.getPhone(),
+                dto.getEmail(), dto.getUserId(), address);
+    }
 
 
-    // READ - Get an address by ID as DTO
-    // todo: Implement service method to get an address by ID as DTO, return Optional.empty() if not found
+    // READ - Return restaurants as summary DTOs (optionally filtered by rating and/or price range).
+    public List<ApiRestaurantDTO> getRestaurantsAsDtos(Integer rating, Integer priceRange) {
+        return restaurantRepository.findRestaurantsByRatingAndPriceRange(rating, priceRange).stream()
+                .map(this::mapRowToRestaurantDTO)
+                .toList();
+    }
 
 
-    // UPDATE - Update an address from DTO
-    // todo: Implement service method to update an address from DTO, return updated DTO, or Optional.empty() if not found
+    // READ - Return a single restaurant as a summary DTO (with rating), or empty if it does not exist.
+    public Optional<ApiRestaurantDTO> getRestaurantByIdAsDto(int id) {
+        List<Object[]> rows = restaurantRepository.findRestaurantWithAverageRatingById(id);
+        if (rows.isEmpty()) {
+            return Optional.empty();
+        }
+        return Optional.of(mapRowToRestaurantDTO(rows.get(0)));
+    }
 
 
-    // DELETE - Delete an address by ID, return true if found
-    // todo: Implement service method to delete an address by ID, return true if found and deleted, false if not found
+    // UPDATE - Update a restaurant's name/price_range/phone from a DTO, return the detailed DTO.
+    // Returns Optional.empty() if no restaurant has the given id (-> 404).
+    @Transactional
+    public Optional<ApiRestaurantDTO> updateRestaurant(int id, ApiCreateRestaurantDTO dto) {
+        Optional<Restaurant> existingOpt = restaurantRepository.findById(id);
+        if (existingOpt.isEmpty()) {
+            return Optional.empty();
+        }
+        Restaurant existing = existingOpt.get();
+        // user_id, email and address are immutable on update — read them from storage for the response.
+        int userId = existing.getUser() != null ? existing.getUser().getId() : 0;
+        String email = existing.getEmail();
+        Address address = existing.getAddress();
+
+        restaurantRepository.updateRestaurant(id, dto.getName(), dto.getPriceRange(), dto.getPhone());
+
+        return Optional.of(buildDetailedDTO(id, dto.getName(), dto.getPriceRange(), dto.getPhone(),
+                email, userId, address));
+    }
 
 
-    // HELPER - Method to map Address entity to DTO
+    // DELETE - Delete a restaurant by id. Returns true if it existed and was deleted, false otherwise.
+    @Transactional
+    public boolean deleteRestaurant(int id) {
+        if (restaurantRepository.findById(id).isEmpty()) {
+            return false;
+        }
+        restaurantRepository.deleteRestaurantById(id);
+        return true;
+    }
+
+
+    // HELPER - Build the detailed restaurant DTO (create/update response shape).
+    private ApiRestaurantDTO buildDetailedDTO(int id, String name, int priceRange, String phone,
+                                              String email, int userId, Address address) {
+        ApiRestaurantDTO dto = new ApiRestaurantDTO();
+        dto.setId(id);
+        dto.setName(name);
+        dto.setPriceRange(priceRange);
+        dto.setPhone(phone);
+        dto.setEmail(email);
+        dto.setUserId(userId);
+        if (address != null) {
+            ApiAddressDTO addressDto = new ApiAddressDTO();
+            addressDto.setId(address.getId());
+            addressDto.setStreetAddress(address.getStreetAddress());
+            addressDto.setCity(address.getCity());
+            addressDto.setPostalCode(address.getPostalCode());
+            dto.setAddress(addressDto);
+        }
+        return dto;
+    }
+
+
+    // HELPER - Method to map an Object[] row (id, name, price_range, rating) to a summary DTO
     private ApiRestaurantDTO mapRowToRestaurantDTO(Object[] row) {
         ApiRestaurantDTO dto = new ApiRestaurantDTO();
         dto.setId(((Number) row[0]).intValue());

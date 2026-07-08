@@ -27,9 +27,7 @@ public interface RestaurantRepository extends JpaRepository<Restaurant, Integer>
     // save(), findAll(), findById(), deleteById()
 
 
-    // ==================== Native SQL CRUD Queries ====================
-    // todo: Add Native SQL queries for CRUD operations on the products table
-
+    // ==================== Native SQL Rating Queries (provided) ====================
 
     // Custom query to find a restaurant by its ID along with its average rating
     @Query(nativeQuery = true, value = """
@@ -40,7 +38,7 @@ public interface RestaurantRepository extends JpaRepository<Restaurant, Integer>
         GROUP BY r.id
     """)
     List<Object[]> findRestaurantWithAverageRatingById(@Param("restaurantId") int restaurantId);
-    
+
     // Custom query to find restaurants by rating and price range
     @Query(nativeQuery = true, value = """
         SELECT * FROM (
@@ -55,47 +53,55 @@ public interface RestaurantRepository extends JpaRepository<Restaurant, Integer>
     List<Object[]> findRestaurantsByRatingAndPriceRange(@Param("rating") Integer rating, @Param("priceRange") Integer priceRange);
 
 
-    
-    // CREATE - Insert a new restaurant
+    // ==================== Native SQL CRUD Queries ====================
+
+    // CREATE - Insert a new restaurant.
+    // Positional binding (?1..?6); no active parameter, so new restaurants are always active = true.
+    // created_on / update_on set with NOW() (native SQL bypasses @CreationTimestamp).
     @Modifying
     @Transactional
     @Query(nativeQuery = true, value = """
-        // todo: Add Native SQL query to save a restaurant
+        INSERT INTO restaurants (user_id, address_id, name, price_range, phone, email, active, created_on, update_on)
+        VALUES (?1, ?2, ?3, ?4, ?5, ?6, true, NOW(), NOW())
     """)
     void saveRestaurant(long userId, long addressId, String name, int priceRange, String phone, String email);
 
 
-    // READ - Find all restaurants
+    // READ - Find all restaurants.
     @Query(nativeQuery = true, value = """
-        // todo: Add Native SQL query to find all restaurants
+        SELECT * FROM restaurants
     """)
     List<Restaurant> findAllRestaurants();
 
 
-    // READ - Find restaurant by ID
+    // READ - Find restaurant by ID. Named binding (:restaurantId) because the argument uses @Param.
     @Query(nativeQuery = true, value = """
-        // todo: Add Native SQL query to find a restaurant by ID
+        SELECT * FROM restaurants WHERE id = :restaurantId
     """)
     Optional<Restaurant> findRestaurantById(@Param("restaurantId") int restaurantId);
 
 
-    // UPDATE - Update a restaurant by ID
+    // UPDATE - Update a restaurant by ID.
+    // Positional binding: ?1 = restaurantId, ?2 = name, ?3 = priceRange, ?4 = phone.
+    // user_id, address_id and email are intentionally NOT updated.
     @Modifying
     @Transactional
     @Query(nativeQuery = true, value = """
-        // todo: Add Native SQL query to update a restaurant by ID
+        UPDATE restaurants
+        SET name = ?2, price_range = ?3, phone = ?4, update_on = NOW()
+        WHERE id = ?1
     """)
     void updateRestaurant(int restaurantId, String name, int priceRange, String phone);
 
 
-    // DELETE - Delete a restaurant by ID
+    // DELETE - Delete a restaurant by ID. Named binding (:restaurantId) because the argument uses @Param.
     @Modifying
     @Transactional
     @Query(nativeQuery = true, value = """
-        // todo: Add Native SQL query to delete a restaurant by ID
+        DELETE FROM restaurants WHERE id = :restaurantId
     """)
     void deleteRestaurantById(@Param("restaurantId") int restaurantId);
-    
+
 
     // GET - Get the last inserted ID
     @Query(nativeQuery = true, value = """
@@ -103,19 +109,3 @@ public interface RestaurantRepository extends JpaRepository<Restaurant, Integer>
     """)
     int getLastInsertedId();
 }
-    
-
-
-
-
-
-
-
-
-
-
-    
-
-
-
-
