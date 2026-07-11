@@ -35,20 +35,17 @@ public interface OrderRepository extends JpaRepository <Order, Integer> {
     """)
     void saveOrder(int restaurantId, int customerId, int orderStatusId);
 
-
     // READ - Find all orders.
     @Query(nativeQuery = true, value = """
         SELECT * FROM orders
     """)
     List<Order> findAllOrders();
 
-
     // READ - Find order by ID. Named binding (:orderId) because the argument uses @Param.
     @Query(nativeQuery = true, value = """
         SELECT * FROM orders WHERE id = :orderId
     """)
     Optional<Order> findOrderById(@Param("orderId") int orderId);
-
 
     // READ - Find orders by restaurant ID.
     @Query(value = """

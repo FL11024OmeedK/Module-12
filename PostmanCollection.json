@@ -1,150 +1,820 @@
 {
   "info": {
     "name": "Rocket Food Delivery REST API",
-    "description": "Manual verification collection for the Module 12 Rocket Food Delivery API.",
+    "description": "Full verification collection for the Module 12 Rocket Food Delivery API. Covers every endpoint (list, get-by-id, create, update, delete, and the custom order/account endpoints). Run 'Auth - Login' first to populate {{token}}. Each resource folder's 'Create' request captures the new id into a collection variable so the Update/Delete requests in that folder can target it directly.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
-    {
-      "key": "baseUrl",
-      "value": "http://localhost:8080"
-    },
-    {
-      "key": "token",
-      "value": ""
-    }
+    { "key": "baseUrl", "value": "http://localhost:8080" },
+    { "key": "token", "value": "" },
+    { "key": "addressId", "value": "1" },
+    { "key": "restaurantId", "value": "1" },
+    { "key": "productId", "value": "1" },
+    { "key": "customerId", "value": "1" },
+    { "key": "courierId", "value": "1" },
+    { "key": "courierStatusId", "value": "1" },
+    { "key": "employeeId", "value": "1" },
+    { "key": "orderStatusId", "value": "1" },
+    { "key": "orderId", "value": "1" },
+    { "key": "productOrderId", "value": "2" },
+    { "key": "userId", "value": "1" }
   ],
   "auth": {
     "type": "bearer",
     "bearer": [
-      {
-        "key": "token",
-        "value": "{{token}}",
-        "type": "string"
-      }
+      { "key": "token", "value": "{{token}}", "type": "string" }
     ]
   },
+  "event": [
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Requests whose name ends in a status code, e.g. \"... (404)\", assert that exact code.",
+          "// Everything else is a happy-path request, so assert a 2xx.",
+          "const match = pm.info.requestName.match(/\\((\\d{3})\\)\\s*$/);",
+          "",
+          "if (match) {",
+          "    const expected = parseInt(match[1], 10);",
+          "    pm.test(`Status code is ${expected}`, function () {",
+          "        pm.response.to.have.status(expected);",
+          "    });",
+          "} else {",
+          "    pm.test('Status code is 2xx', function () {",
+          "        pm.expect(pm.response.code).to.be.within(200, 299);",
+          "    });",
+          "}",
+          "",
+          "pm.test('Response body is valid JSON', function () {",
+          "    pm.response.to.have.jsonBody();",
+          "});",
+          "",
+          "pm.test('Response time is under 2000ms', function () {",
+          "    pm.expect(pm.response.responseTime).to.be.below(2000);",
+          "});"
+        ]
+      }
+    }
+  ],
   "item": [
     {
-      "name": "Auth - Login",
-      "request": {
-        "auth": {
-          "type": "noauth"
-        },
-        "method": "POST",
-        "header": [
-          {
-            "key": "Content-Type",
-            "value": "application/json"
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const json = pm.response.json();",
+                  "    if (json.accessToken) {",
+                  "        pm.collectionVariables.set('token', json.accessToken);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"both@gmail.com\",\n  \"password\": \"password\"\n}"
+            },
+            "url": "{{baseUrl}}/api/auth"
           }
-        ],
-        "body": {
-          "mode": "raw",
-          "raw": "{\n  \"email\": \"both@gmail.com\",\n  \"password\": \"password\"\n}"
         },
-        "url": "{{baseUrl}}/api/auth"
-      }
-    },
-    {
-      "name": "Addresses - List",
-      "request": {
-        "method": "GET",
-        "url": "{{baseUrl}}/api/addresses"
-      }
-    },
-    {
-      "name": "Restaurants - List",
-      "request": {
-        "method": "GET",
-        "url": "{{baseUrl}}/api/restaurants"
-      }
-    },
-    {
-      "name": "Products - List",
-      "request": {
-        "method": "GET",
-        "url": "{{baseUrl}}/api/products"
-      }
-    },
-    {
-      "name": "Customers - List",
-      "request": {
-        "method": "GET",
-        "url": "{{baseUrl}}/api/customers"
-      }
-    },
-    {
-      "name": "Couriers - List",
-      "request": {
-        "method": "GET",
-        "url": "{{baseUrl}}/api/couriers"
-      }
-    },
-    {
-      "name": "Courier Statuses - List",
-      "request": {
-        "method": "GET",
-        "url": "{{baseUrl}}/api/courier-statuses"
-      }
-    },
-    {
-      "name": "Employees - List",
-      "request": {
-        "method": "GET",
-        "url": "{{baseUrl}}/api/employees"
-      }
-    },
-    {
-      "name": "Order Statuses - List",
-      "request": {
-        "method": "GET",
-        "url": "{{baseUrl}}/api/order-statuses"
-      }
-    },
-    {
-      "name": "Orders - Customer List",
-      "request": {
-        "method": "GET",
-        "url": "{{baseUrl}}/api/orders?type=customer&id=1"
-      }
-    },
-    {
-      "name": "Orders - Create",
-      "request": {
-        "method": "POST",
-        "header": [
-          {
-            "key": "Content-Type",
-            "value": "application/json"
+        {
+          "name": "Login - Invalid Credentials (401)",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"both@gmail.com\",\n  \"password\": \"wrong-password\"\n}"
+            },
+            "url": "{{baseUrl}}/api/auth"
           }
-        ],
-        "body": {
-          "mode": "raw",
-          "raw": "{\n  \"customer_id\": 1,\n  \"restaurant_id\": 1,\n  \"products\": [\n    {\n      \"id\": 1,\n      \"quantity\": 2\n    }\n  ]\n}"
+        }
+      ]
+    },
+    {
+      "name": "Addresses",
+      "item": [
+        {
+          "name": "List",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/addresses" }
         },
-        "url": "{{baseUrl}}/api/orders"
-      }
+        {
+          "name": "Get By Id",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/addresses/1" }
+        },
+        {
+          "name": "Get By Id - Not Found (404)",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/addresses/999999" }
+        },
+        {
+          "name": "Create",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    pm.collectionVariables.set('addressId', pm.response.json().data.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"street_address\": \"123 Test St\",\n  \"city\": \"Testville\",\n  \"postal_code\": \"12345\"\n}"
+            },
+            "url": "{{baseUrl}}/api/addresses"
+          }
+        },
+        {
+          "name": "Update",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"street_address\": \"456 Updated Ave\",\n  \"city\": \"Testville\",\n  \"postal_code\": \"54321\"\n}"
+            },
+            "url": "{{baseUrl}}/api/addresses/{{addressId}}"
+          }
+        },
+        {
+          "name": "Delete",
+          "request": { "method": "DELETE", "url": "{{baseUrl}}/api/addresses/{{addressId}}" }
+        }
+      ]
     },
     {
-      "name": "Product Orders - List",
-      "request": {
-        "method": "GET",
-        "url": "{{baseUrl}}/api/product-orders"
-      }
+      "name": "Restaurants",
+      "item": [
+        {
+          "name": "List",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/restaurants" }
+        },
+        {
+          "name": "List - Filtered by rating and price_range",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/restaurants?rating=4&price_range=2" }
+        },
+        {
+          "name": "Get By Id",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/restaurants/1" }
+        },
+        {
+          "name": "Get By Id - Not Found (404)",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/restaurants/999999" }
+        },
+        {
+          "name": "Create",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    pm.collectionVariables.set('restaurantId', pm.response.json().data.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": 1,\n  \"name\": \"Test Restaurant\",\n  \"phone\": \"+1-555-9000\",\n  \"email\": \"testrestaurant@example.com\",\n  \"price_range\": 2,\n  \"address\": {\n    \"street_address\": \"789 New Ave\",\n    \"city\": \"Foodtown\",\n    \"postal_code\": \"11111\"\n  }\n}"
+            },
+            "url": "{{baseUrl}}/api/restaurants"
+          }
+        },
+        {
+          "name": "Update",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": 1,\n  \"name\": \"Updated Restaurant Name\",\n  \"phone\": \"+1-555-9001\",\n  \"email\": \"updatedrestaurant@example.com\",\n  \"price_range\": 3\n}"
+            },
+            "url": "{{baseUrl}}/api/restaurants/{{restaurantId}}"
+          }
+        },
+        {
+          "name": "Delete",
+          "request": { "method": "DELETE", "url": "{{baseUrl}}/api/restaurants/{{restaurantId}}" }
+        }
+      ]
     },
     {
-      "name": "Users - List",
-      "request": {
-        "method": "GET",
-        "url": "{{baseUrl}}/api/users"
-      }
+      "name": "Products",
+      "item": [
+        {
+          "name": "List",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/products" }
+        },
+        {
+          "name": "List - Filtered by restaurant",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/products?restaurant=1" }
+        },
+        {
+          "name": "Get By Id",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/products/1" }
+        },
+        {
+          "name": "Get By Id - Not Found (404)",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/products/999999" }
+        },
+        {
+          "name": "Create",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    pm.collectionVariables.set('productId', pm.response.json().data.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"restaurant_id\": 1,\n  \"name\": \"Test Burger\",\n  \"description\": \"A delicious test burger\",\n  \"cost\": 12\n}"
+            },
+            "url": "{{baseUrl}}/api/products"
+          }
+        },
+        {
+          "name": "Update",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"restaurant_id\": 1,\n  \"name\": \"Updated Burger\",\n  \"description\": \"An updated delicious burger\",\n  \"cost\": 15\n}"
+            },
+            "url": "{{baseUrl}}/api/products/{{productId}}"
+          }
+        },
+        {
+          "name": "Delete",
+          "request": { "method": "DELETE", "url": "{{baseUrl}}/api/products/{{productId}}" }
+        }
+      ]
     },
     {
-      "name": "Account - Current",
-      "request": {
-        "method": "GET",
-        "url": "{{baseUrl}}/api/account/1"
-      }
+      "name": "Customers",
+      "item": [
+        {
+          "name": "List",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/customers" }
+        },
+        {
+          "name": "Get By Id",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/customers/1" }
+        },
+        {
+          "name": "Get By Id - Not Found (404)",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/customers/999999" }
+        },
+        {
+          "name": "Create",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    pm.collectionVariables.set('customerId', pm.response.json().data.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": 14,\n  \"address_id\": 30,\n  \"phone\": \"+1-555-5000\",\n  \"email\": \"testcustomer@example.com\",\n  \"active\": true\n}"
+            },
+            "url": "{{baseUrl}}/api/customers"
+          }
+        },
+        {
+          "name": "Update",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": 14,\n  \"address_id\": 30,\n  \"phone\": \"+1-555-5001\",\n  \"email\": \"updatedcustomer@example.com\",\n  \"active\": false\n}"
+            },
+            "url": "{{baseUrl}}/api/customers/{{customerId}}"
+          }
+        },
+        {
+          "name": "Delete",
+          "request": { "method": "DELETE", "url": "{{baseUrl}}/api/customers/{{customerId}}" }
+        }
+      ]
+    },
+    {
+      "name": "Couriers",
+      "item": [
+        {
+          "name": "List",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/couriers" }
+        },
+        {
+          "name": "Get By Id",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/couriers/1" }
+        },
+        {
+          "name": "Get By Id - Not Found (404)",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/couriers/999999" }
+        },
+        {
+          "name": "Create",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    pm.collectionVariables.set('courierId', pm.response.json().data.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": 15,\n  \"address_id\": 30,\n  \"courier_status_id\": 1,\n  \"phone\": \"+1-555-6000\",\n  \"email\": \"testcourier@example.com\",\n  \"active\": true\n}"
+            },
+            "url": "{{baseUrl}}/api/couriers"
+          }
+        },
+        {
+          "name": "Update",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": 15,\n  \"address_id\": 30,\n  \"courier_status_id\": 2,\n  \"phone\": \"+1-555-6001\",\n  \"email\": \"updatedcourier@example.com\",\n  \"active\": false\n}"
+            },
+            "url": "{{baseUrl}}/api/couriers/{{courierId}}"
+          }
+        },
+        {
+          "name": "Delete",
+          "request": { "method": "DELETE", "url": "{{baseUrl}}/api/couriers/{{courierId}}" }
+        }
+      ]
+    },
+    {
+      "name": "Courier Statuses",
+      "item": [
+        {
+          "name": "List",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/courier-statuses" }
+        },
+        {
+          "name": "Get By Id",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/courier-statuses/1" }
+        },
+        {
+          "name": "Get By Id - Not Found (404)",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/courier-statuses/999999" }
+        },
+        {
+          "name": "Create",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    pm.collectionVariables.set('courierStatusId', pm.response.json().data.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"test-status\"\n}" },
+            "url": "{{baseUrl}}/api/courier-statuses"
+          }
+        },
+        {
+          "name": "Update",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"updated-status\"\n}" },
+            "url": "{{baseUrl}}/api/courier-statuses/{{courierStatusId}}"
+          }
+        },
+        {
+          "name": "Delete",
+          "request": { "method": "DELETE", "url": "{{baseUrl}}/api/courier-statuses/{{courierStatusId}}" }
+        }
+      ]
+    },
+    {
+      "name": "Employees",
+      "item": [
+        {
+          "name": "List",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/employees" }
+        },
+        {
+          "name": "Get By Id",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/employees/1" }
+        },
+        {
+          "name": "Get By Id - Not Found (404)",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/employees/999999" }
+        },
+        {
+          "name": "Create",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    pm.collectionVariables.set('employeeId', pm.response.json().data.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": 30,\n  \"address_id\": 30,\n  \"phone\": \"+1-555-7000\",\n  \"email\": \"testemployee@example.com\"\n}"
+            },
+            "url": "{{baseUrl}}/api/employees"
+          }
+        },
+        {
+          "name": "Update",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": 30,\n  \"address_id\": 30,\n  \"phone\": \"+1-555-7001\",\n  \"email\": \"updatedemployee@example.com\"\n}"
+            },
+            "url": "{{baseUrl}}/api/employees/{{employeeId}}"
+          }
+        },
+        {
+          "name": "Delete",
+          "request": { "method": "DELETE", "url": "{{baseUrl}}/api/employees/{{employeeId}}" }
+        }
+      ]
+    },
+    {
+      "name": "Order Statuses",
+      "item": [
+        {
+          "name": "List",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/order-statuses" }
+        },
+        {
+          "name": "Get By Id",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/order-statuses/1" }
+        },
+        {
+          "name": "Get By Id - Not Found (404)",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/order-statuses/999999" }
+        },
+        {
+          "name": "Create",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    pm.collectionVariables.set('orderStatusId', pm.response.json().data.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"cancelled\"\n}" },
+            "url": "{{baseUrl}}/api/order-statuses"
+          }
+        },
+        {
+          "name": "Update",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"refunded\"\n}" },
+            "url": "{{baseUrl}}/api/order-statuses/{{orderStatusId}}"
+          }
+        },
+        {
+          "name": "Delete",
+          "request": { "method": "DELETE", "url": "{{baseUrl}}/api/order-statuses/{{orderStatusId}}" }
+        },
+        {
+          "name": "Update Status For Order (custom)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"status\": \"in progress\"\n}" },
+            "url": "{{baseUrl}}/api/order/{{orderId}}/status"
+          }
+        },
+        {
+          "name": "Update Status For Order - Invalid Status (400)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"status\": \"not-a-real-status\"\n}" },
+            "url": "{{baseUrl}}/api/order/{{orderId}}/status"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Orders",
+      "item": [
+        {
+          "name": "List - By Customer",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/orders?type=customer&id=1" }
+        },
+        {
+          "name": "List - By Restaurant",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/orders?type=restaurant&id=1" }
+        },
+        {
+          "name": "List - By Courier",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/orders?type=courier&id=1" }
+        },
+        {
+          "name": "List - Invalid Type (400)",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/orders?type=invalid&id=1" }
+        },
+        {
+          "name": "Create",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    pm.collectionVariables.set('orderId', pm.response.json().data.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customer_id\": 1,\n  \"restaurant_id\": 1,\n  \"products\": [\n    {\n      \"id\": 1,\n      \"quantity\": 2\n    }\n  ]\n}"
+            },
+            "url": "{{baseUrl}}/api/orders"
+          }
+        },
+        {
+          "name": "Update",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customer_id\": 1,\n  \"restaurant_id\": 1,\n  \"courier_id\": 1\n}"
+            },
+            "url": "{{baseUrl}}/api/orders/{{orderId}}"
+          }
+        },
+        {
+          "name": "Assign Courier (custom)",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"courier_id\": 1\n}" },
+            "url": "{{baseUrl}}/api/order/{{orderId}}/courier"
+          }
+        },
+        {
+          "name": "Update Rating (custom)",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"restaurant_rating\": 5\n}" },
+            "url": "{{baseUrl}}/api/order/{{orderId}}/rating"
+          }
+        },
+        {
+          "name": "Delete",
+          "request": { "method": "DELETE", "url": "{{baseUrl}}/api/orders/{{orderId}}" }
+        }
+      ]
+    },
+    {
+      "name": "Product Orders",
+      "item": [
+        {
+          "name": "List",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/product-orders" }
+        },
+        {
+          "name": "Get By Id",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/product-orders/2" }
+        },
+        {
+          "name": "Get By Id - Not Found (404)",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/product-orders/999999" }
+        },
+        {
+          "name": "Create",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    pm.collectionVariables.set('productOrderId', pm.response.json().data.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"product_id\": 24,\n  \"order_id\": 1,\n  \"product_quantity\": 2,\n  \"product_unit_cost\": 10\n}"
+            },
+            "url": "{{baseUrl}}/api/product-orders"
+          }
+        },
+        {
+          "name": "Update",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"product_id\": 24,\n  \"order_id\": 1,\n  \"product_quantity\": 3,\n  \"product_unit_cost\": 10\n}"
+            },
+            "url": "{{baseUrl}}/api/product-orders/{{productOrderId}}"
+          }
+        },
+        {
+          "name": "Delete",
+          "request": { "method": "DELETE", "url": "{{baseUrl}}/api/product-orders/{{productOrderId}}" }
+        }
+      ]
+    },
+    {
+      "name": "Users",
+      "item": [
+        {
+          "name": "List",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/users" }
+        },
+        {
+          "name": "Get By Id",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/users/1" }
+        },
+        {
+          "name": "Get By Id - Not Found (404)",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/users/999999" }
+        },
+        {
+          "name": "Create",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    pm.collectionVariables.set('userId', pm.response.json().data.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Test User\",\n  \"email\": \"testuser@example.com\",\n  \"password\": \"password\"\n}"
+            },
+            "url": "{{baseUrl}}/api/users"
+          }
+        },
+        {
+          "name": "Update",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Updated User\",\n  \"email\": \"updateduser@example.com\",\n  \"password\": \"newpassword\"\n}"
+            },
+            "url": "{{baseUrl}}/api/users/{{userId}}"
+          }
+        },
+        {
+          "name": "Delete",
+          "request": { "method": "DELETE", "url": "{{baseUrl}}/api/users/{{userId}}" }
+        }
+      ]
+    },
+    {
+      "name": "Account",
+      "item": [
+        {
+          "name": "Get Account",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/account/1" }
+        },
+        {
+          "name": "Get Account - Not Found (404)",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/account/999999" }
+        },
+        {
+          "name": "Update Account - Customer",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"updatedaccount@example.com\",\n  \"phone\": \"+1-555-9999\"\n}"
+            },
+            "url": "{{baseUrl}}/api/account/1?type=customer"
+          }
+        },
+        {
+          "name": "Update Account - Invalid Type (400)",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"updatedaccount@example.com\",\n  \"phone\": \"+1-555-9999\"\n}"
+            },
+            "url": "{{baseUrl}}/api/account/1?type=invalid"
+          }
+        }
+      ]
     }
   ]
 }

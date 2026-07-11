@@ -70,9 +70,7 @@ public class OrderApiController {
         return ResponseBuilder.buildOkResponse(order);
     }
 
-
     // ==================== Custom Endpoints ====================
-
 
     // --- Assign a courier to an order ---
     @PutMapping("/api/order/{id}/courier")
@@ -81,7 +79,6 @@ public class OrderApiController {
         if (updated.isEmpty()) throw new ResourceNotFoundException(String.format("Order with id %d or courier not found", id));
         return ResponseBuilder.buildOkResponse(updated.get());
     }
-
 
     // --- Update an order's rating ---
     @PutMapping("/api/order/{id}/rating")
